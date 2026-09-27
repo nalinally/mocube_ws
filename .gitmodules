@@ -1,0 +1,6 @@
+[submodule "src/atom_krs_ros_udp_bridge"]
+	path = src/atom_krs_ros_udp_bridge
+	url = git@github.com:nalinally/atom_krs_ros_udp_bridge.git
+[submodule "src/atom_krs_ros_udp_bridge_msg"]
+	path = src/atom_krs_ros_udp_bridge_msg
+	url = git@github.com:nalinally/atom_krs_ros_udp_bridge_msg.git
