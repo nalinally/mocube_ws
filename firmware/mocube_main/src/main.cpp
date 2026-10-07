@@ -4,6 +4,30 @@
 #include <M5AtomS3.h>
 #include <IcsHardSerialClass.h>
 
+#include "IrNecReceiver.h"
+#include "IrNecTransmitter.h"
+
+// ============================================================
+// Pin configuration
+// ============================================================
+//
+// AtomS3 exposes G5/G6/G7/G8/G38/G39 as bottom GPIOs.
+// KRS uses G5/G6/G7, so IR must not use those pins.
+//
+// IR RX:
+//   RX1 = G8
+//   RX2 = G38
+//   RX3 = G39
+//
+// IR TX:
+//   G1 (HY2.0-4P yellow/white-side GPIO)
+//
+// Change these here if your physical wiring is different.
+// ============================================================
+
+constexpr uint8_t IR_RX_PINS[3] = {G8, G38, G39};
+constexpr uint8_t IR_TX_PIN = G1;
+
 
 // ============================================================
 // Wi-Fi
@@ -17,8 +41,7 @@ const char* WIFI_PASSWORD = "89sk389sk3";
 // UDP
 // ============================================================
 
-const uint16_t UDP_PORT = 5000;
-
+constexpr uint16_t UDP_PORT = 5000;
 WiFiUDP udp;
 
 
@@ -27,7 +50,6 @@ WiFiUDP udp;
 // ============================================================
 
 String myMAC = "";
-
 int myID = -1;
 
 
@@ -35,9 +57,9 @@ int myID = -1;
 // Timing
 // ============================================================
 
-const unsigned long REGISTER_INTERVAL = 2000;
-const unsigned long HEARTBEAT_INTERVAL = 1000;
-const unsigned long PC_TIMEOUT = 3000;
+constexpr unsigned long REGISTER_INTERVAL = 2000;
+constexpr unsigned long HEARTBEAT_INTERVAL = 1000;
+constexpr unsigned long PC_TIMEOUT = 3000;
 
 unsigned long lastRegister = 0;
 unsigned long lastHeartbeat = 0;
@@ -66,31 +88,6 @@ bool pcConnected = false;
 
 
 // ============================================================
-// Broadcast address
-//
-// 255.255.255.255ではなく、現在のWi-Fiの
-// subnet broadcastを計算する
-// ============================================================
-
-IPAddress getBroadcastAddress()
-{https://chatgpt.com/codex
-    IPAddress ip = WiFi.localIP();
-    IPAddress mask = WiFi.subnetMask();
-
-    IPAddress broadcast;
-
-    for (int i = 0; i < 4; i++)
-    {
-        broadcast[i] =
-            (ip[i] & mask[i]) |
-            (~mask[i] & 0xFF);
-    }
-
-    return broadcast;
-}
-
-
-// ============================================================
 // KRS Servo
 // ============================================================
 
@@ -113,7 +110,7 @@ enum KRSState {
     SETPOS
 };
 
-enum KRSState krs_states[6] = {
+KRSState krs_states[6] = {
     FREE, FREE, FREE, FREE, FREE, FREE
 };
 
@@ -123,181 +120,119 @@ int krs_poses[6] = {
 
 
 // ============================================================
-// split
+// IR
 // ============================================================
 
-int split(String data, char delimiter, String *dst){
-    int index = 0; 
-    int datalength = data.length();
-    
-    for (int i = 0; i < datalength; i++) {
-        char tmp = data.charAt(i);
-        if ( tmp == delimiter ) {
-            index++;
+IrNecReceiver irReceiver(IR_RX_PINS);
+IrNecTransmitter irTransmitter(IR_TX_PIN);
+
+
+// ============================================================
+// Utility
+// ============================================================
+
+int split(String data, char delimiter, String* dst)
+{
+    int index = 0;
+    const int dataLength = data.length();
+
+    for (int i = 0; i < dataLength; ++i) {
+        const char tmp = data.charAt(i);
+
+        if (tmp == delimiter) {
+            ++index;
+        } else {
+            dst[index] += tmp;
         }
-        else dst[index] += tmp;
     }
-    
-    return (index + 1);
+
+    return index + 1;
 }
 
 
 // ============================================================
-// Send UDP
+// Wi-Fi / UDP
 // ============================================================
 
-void sendBroadcast(String message)
+IPAddress getBroadcastAddress()
 {
-    IPAddress broadcastIP =
-        getBroadcastAddress();
+    IPAddress ip = WiFi.localIP();
+    IPAddress mask = WiFi.subnetMask();
 
-    udp.beginPacket(
-        broadcastIP,
-        UDP_PORT
-    );
+    IPAddress broadcast;
 
+    for (int i = 0; i < 4; ++i) {
+        broadcast[i] =
+            (ip[i] & mask[i]) |
+            (~mask[i] & 0xFF);
+    }
+
+    return broadcast;
+}
+
+void sendBroadcast(const String& message)
+{
+    const IPAddress broadcastIP = getBroadcastAddress();
+
+    udp.beginPacket(broadcastIP, UDP_PORT);
     udp.print(message);
-
     udp.endPacket();
 
-    Serial.print("SEND: ");
-    Serial.println(message);
+    // Serial.print("SEND: ");
+    // Serial.println(message);
 }
-
-
-// ============================================================
-// Register
-// ============================================================
 
 void sendRegister()
 {
-    String message =
-        "REGISTER," + myMAC;
-
-    sendBroadcast(message);
+    sendBroadcast("REGISTER," + myMAC);
 }
-
-
-// ============================================================
-// Heartbeat
-// ============================================================
 
 void sendHeartbeat()
 {
-    String message =
-        "HEARTBEAT," + myMAC;
-
-    sendBroadcast(message);
+    sendBroadcast("HEARTBEAT," + myMAC);
 }
 
 
 // ============================================================
-// Draw status indicator
+// UI
 // ============================================================
 
-void drawStatusDot(
-    int x,
-    int y,
-    bool state
-)
+void drawStatusDot(int x, int y, bool state)
 {
-    if (state)
-    {
-        M5.Lcd.fillCircle(
-            x,
-            y,
-            5,
-            COLOR_GREEN
-        );
-    }
-    else
-    {
-        M5.Lcd.fillCircle(
-            x,
-            y,
-            5,
-            COLOR_RED
-        );
-    }
+    M5.Lcd.fillCircle(
+        x,
+        y,
+        5,
+        state ? COLOR_GREEN : COLOR_RED
+    );
 }
-
-
-// ============================================================
-// Draw UI
-// ============================================================
 
 void drawUI()
 {
     M5.Lcd.fillScreen(COLOR_BG);
 
-    // --------------------------------------------------------
-    // Header
-    // --------------------------------------------------------
-
-    // M5.Lcd.fillRoundRect(
-    //     4,
-    //     4,
-    //     120,
-    //     24,
-    //     6,
-    //     COLOR_PANEL
-    // );
-
-    // M5.Lcd.setTextSize(2);
-    // M5.Lcd.setTextColor(COLOR_WHITE);
-
-    // M5.Lcd.setCursor(12, 10);
-
-    // if (pcConnected)
-    // {
-    //     M5.Lcd.setTextColor(COLOR_GREEN);
-    //     M5.Lcd.print("PC ONLINE");
-    // }
-    // else
-    // {
-    //     M5.Lcd.setTextColor(COLOR_RED);
-    //     M5.Lcd.print("PC OFFLINE");
-    // }
-
-
-    // --------------------------------------------------------
-    // ID
-    // --------------------------------------------------------
-
+    // Module ID
     M5.Lcd.setTextColor(COLOR_GRAY);
     M5.Lcd.setTextSize(1);
-
     M5.Lcd.setCursor(10, 20);
     M5.Lcd.print("MODULE ID");
 
-
     M5.Lcd.setTextColor(COLOR_WHITE);
     M5.Lcd.setTextSize(2);
-
     M5.Lcd.setCursor(75, 10);
 
-    if (myID >= 0)
-    {
-        if (myID < 10)
-        {
+    if (myID >= 0) {
+        if (myID < 10) {
             M5.Lcd.print("0");
         }
-
         M5.Lcd.print(myID);
-    }
-    else
-    {
+    } else {
         M5.Lcd.print("--");
     }
 
-
-    // --------------------------------------------------------
-    // WiFi
-    // --------------------------------------------------------
-
+    // Wi-Fi
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(COLOR_GRAY);
-
     M5.Lcd.setCursor(10, 33);
     M5.Lcd.print("WiFi");
 
@@ -307,11 +242,7 @@ void drawUI()
         WiFi.status() == WL_CONNECTED
     );
 
-
-    // --------------------------------------------------------
     // PC
-    // --------------------------------------------------------
-
     M5.Lcd.setCursor(60, 33);
     M5.Lcd.setTextColor(COLOR_GRAY);
     M5.Lcd.print("PC");
@@ -322,42 +253,34 @@ void drawUI()
         pcConnected
     );
 
-
-    // --------------------------------------------------------
     // IP
-    // --------------------------------------------------------
-
     M5.Lcd.setTextColor(COLOR_CYAN);
     M5.Lcd.setTextSize(1);
-
     M5.Lcd.setCursor(10, 46);
 
-    if (WiFi.status() == WL_CONNECTED)
-    {
-        M5.Lcd.print(
-            WiFi.localIP().toString()
-        );
-    }
-    else
-    {
+    if (WiFi.status() == WL_CONNECTED) {
+        M5.Lcd.print(WiFi.localIP().toString());
+    } else {
         M5.Lcd.print("No WiFi");
     }
 
-    // --------------------------------------------------------
     // KRS
-    // --------------------------------------------------------
-
     M5.Lcd.setTextColor(COLOR_WHITE);
     M5.Lcd.setTextSize(1);
-
     M5.Lcd.setCursor(10, 59);
     M5.Lcd.print("Servo");
 
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 2; j++) {
-            int KRS_ID = i * 2 + j;
-            M5.Lcd.setCursor(10 + 50 * j, 69 + 10 * i);
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 2; ++j) {
+            const int KRS_ID = i * 2 + j;
+
+            M5.Lcd.setCursor(
+                10 + 50 * j,
+                69 + 10 * i
+            );
+
             M5.Lcd.print(KRS_ID);
+
             if (krs_states[KRS_ID] == FREE) {
                 M5.Lcd.print(":F");
             }
@@ -371,7 +294,7 @@ void drawUI()
 
 
 // ============================================================
-// WiFi connection
+// Wi-Fi connection
 // ============================================================
 
 void connectWiFi()
@@ -380,58 +303,58 @@ void connectWiFi()
 
     M5.Lcd.setTextColor(COLOR_WHITE);
     M5.Lcd.setTextSize(2);
-
     M5.Lcd.setCursor(10, 15);
-
     M5.Lcd.println("WiFi");
 
     M5.Lcd.setTextSize(1);
-
     M5.Lcd.setCursor(10, 45);
-
     M5.Lcd.println("Connecting...");
 
-
     WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-    WiFi.begin(
-        WIFI_SSID,
-        WIFI_PASSWORD
-    );
-
-
-    while (
-        WiFi.status() != WL_CONNECTED
-    )
-    {
+    while (WiFi.status() != WL_CONNECTED) {
         delay(500);
 
         Serial.print(".");
-
         M5.Lcd.print(".");
     }
 
-
     Serial.println();
 
-    Serial.println(
-        "WiFi connected!"
-    );
+    Serial.println("WiFi connected!");
 
     Serial.print("IP: ");
-    Serial.println(
-        WiFi.localIP()
-    );
+    Serial.println(WiFi.localIP());
 
     Serial.print("MAC: ");
-    Serial.println(
-        WiFi.macAddress()
-    );
+    Serial.println(WiFi.macAddress());
 }
 
 
 // ============================================================
-// controlKRS
+// IR callback
+// ============================================================
+
+void onIrMessage(
+    uint8_t channel,
+    const IrNecReceiver::Message& message)
+{
+    Serial.printf(
+        "IR RX%d: ADDR=0x%02X CMD=0x%02X DATA=0x%08lX\n",
+        channel + 1,
+        message.address,
+        message.command,
+        static_cast<unsigned long>(message.raw)
+    );
+
+    // TODO:
+    // 必要ならここで受信したNECコマンドに応じた処理を行う。
+}
+
+
+// ============================================================
+// KRS control
 // ============================================================
 
 void controlKRS()
@@ -441,55 +364,49 @@ void controlKRS()
 
 
 // ============================================================
-// Receive UDP
+// UDP receive
 // ============================================================
 
 void receiveUDP()
 {
-    int packetSize =
-        udp.parsePacket();
+    const int packetSize = udp.parsePacket();
 
-    if (packetSize <= 0)
-    {
+    if (packetSize <= 0) {
         return;
     }
 
-
     char buffer[256];
 
-    int length =
-        udp.read(
-            buffer,
-            sizeof(buffer) - 1
-        );
+    const int length =
+        udp.read(buffer, sizeof(buffer) - 1);
+
+    if (length <= 0) {
+        return;
+    }
 
     buffer[length] = '\0';
 
+    const String message(buffer);
 
-    String message =
-        String(buffer);
-
-
-    Serial.print("RECV: ");
-    Serial.println(message);
+    // Serial.print("RECV: ");
+    // Serial.println(message);
 
     String msgs[5];
+    const int index = split(message, ',', msgs);
 
-    int index = split(message, ',', msgs);
-
+    if (index <= 0) {
+        return;
+    }
 
     // --------------------------------------------------------
     // ID assignment
     // --------------------------------------------------------
 
-    if (msgs[0] == "ID")
-    {
+    if (msgs[0] == "ID" && index >= 2) {
+
         myID = msgs[1].toInt();
 
-        // PCから応答が来たので、
-        // PCとの通信開始
         lastPCAck = millis();
-
         pcConnected = true;
 
         Serial.print("Assigned ID: ");
@@ -498,28 +415,19 @@ void receiveUDP()
         drawUI();
     }
 
-
     // --------------------------------------------------------
     // Heartbeat ACK
     // --------------------------------------------------------
 
-    else if (msgs[0] == "ACK")
-    {
-        int receivedID = msgs[1].toInt();
+    else if (msgs[0] == "ACK" && index >= 2) {
 
-        // 自分のIDなら正常
-        if (
-            myID >= 0 &&
-            receivedID == myID
-        )
-        {
+        const int receivedID = msgs[1].toInt();
+
+        if (myID >= 0 && receivedID == myID) {
             lastPCAck = millis();
-
             pcConnected = true;
 
-            Serial.println(
-                "PC heartbeat OK"
-            );
+            Serial.println("PC heartbeat OK");
 
             drawUI();
         }
@@ -529,22 +437,54 @@ void receiveUDP()
     // KRS Servo
     // --------------------------------------------------------
 
-    else if (msgs[0] == "KRS")
-    {
-        String cmd = msgs[1];
+    else if (msgs[0] == "KRS" && index >= 3) {
 
-        if (cmd == "setPos") {
-            int ID = msgs[2].toInt();
-            int pos = msgs[3].toInt();
-            krs.setPos(ID,pos);
-            krs_states[ID] = SETPOS;
-            krs_poses[ID] = pos;
+        const String cmd = msgs[1];
+
+        if (cmd == "setPos" && index >= 4) {
+
+            const int ID = msgs[2].toInt();
+            const int pos = msgs[3].toInt();
+
+            if (ID >= 0 && ID < 6) {
+                krs.setPos(ID, pos);
+                krs_states[ID] = SETPOS;
+                krs_poses[ID] = pos;
+            }
         }
 
-        if (cmd == "setFree") {
-            int ID = msgs[2].toInt();
-            krs.setFree(ID);
-            krs_states[ID] = FREE;
+        if (cmd == "setFree" && index >= 3) {
+
+            const int ID = msgs[2].toInt();
+
+            if (ID >= 0 && ID < 6) {
+                krs.setFree(ID);
+                krs_states[ID] = FREE;
+            }
+        }
+    }
+
+    // --------------------------------------------------------
+    // IR TX
+    //
+    // Example:
+    //   IR,send,0xE718FF00
+    // --------------------------------------------------------
+
+    else if (msgs[0] == "IR" &&
+             index >= 3 &&
+             msgs[1] == "send") {
+
+        const uint32_t raw =
+            strtoul(msgs[2].c_str(), nullptr, 0);
+
+        if (irTransmitter.send(raw)) {
+            Serial.printf(
+                "IR TX: 0x%08lX\n",
+                static_cast<unsigned long>(raw)
+            );
+        } else {
+            Serial.println("IR TX: failed");
         }
     }
 }
@@ -564,32 +504,26 @@ void setup()
 
     delay(500);
 
+    // --------------------------------------------------------
+    // Wi-Fi
+    // --------------------------------------------------------
 
-    // WiFi接続
     connectWiFi();
 
+    myMAC = WiFi.macAddress();
 
-    // MAC取得
-    myMAC =
-        WiFi.macAddress();
-
-
-    // UDP開始
     udp.begin(UDP_PORT);
 
+    // --------------------------------------------------------
+    // UI
+    // --------------------------------------------------------
 
-    // 初期状態
     drawUI();
 
+    // --------------------------------------------------------
+    // KRS
+    // --------------------------------------------------------
 
-    // PCに登録
-    sendRegister();
-
-    lastRegister =
-        millis();
-
-
-    // KRS開始
     Serial1.begin(
         KRS_BAUDRATE,
         SERIAL_8E1,
@@ -597,7 +531,23 @@ void setup()
         KRS_ICS_TX
     );
 
-    krs.begin();  //サーボモータの通信初期設定
+    krs.begin();
+
+    // --------------------------------------------------------
+    // IR
+    // --------------------------------------------------------
+
+    irReceiver.begin(onIrMessage);
+    irTransmitter.begin(38000);
+
+    Serial.println("IR receiver/transmitter ready");
+
+    // --------------------------------------------------------
+    // PC registration
+    // --------------------------------------------------------
+
+    sendRegister();
+    lastRegister = millis();
 }
 
 
@@ -607,92 +557,87 @@ void setup()
 
 void loop()
 {
+
     M5.update();
 
+    // --------------------------------------------------------
+    // IR RX
+    //
+    // ISRは常時エッジを記録し、ここでNECをデコードする。
+    // --------------------------------------------------------
+
+    irReceiver.update();
 
     // --------------------------------------------------------
-    // WiFi切断チェック
+    // Wi-Fi connection
     // --------------------------------------------------------
 
-    if (
-        WiFi.status() != WL_CONNECTED
-    )
-    {
+    if (WiFi.status() != WL_CONNECTED) {
+
         pcConnected = false;
-
         drawUI();
 
         delay(1000);
-
         return;
     }
 
-
     // --------------------------------------------------------
-    // UDP受信
+    // UDP
     // --------------------------------------------------------
 
     receiveUDP();
 
-
-    unsigned long now =
-        millis();
-
+    const unsigned long now = millis();
 
     // --------------------------------------------------------
-    // ID未取得ならREGISTERを繰り返す
+    // Register
     // --------------------------------------------------------
 
-    if (myID < 0)
-    {
-        if (
-            now - lastRegister
-            >= REGISTER_INTERVAL
-        )
-        {
-            lastRegister = now;
+    if (myID < 0 &&
+        now - lastRegister >= REGISTER_INTERVAL) {
 
-            sendRegister();
-        }
+        lastRegister = now;
+        sendRegister();
     }
-
 
     // --------------------------------------------------------
     // Heartbeat
     // --------------------------------------------------------
 
-    if (
-        now - lastHeartbeat
-        >= HEARTBEAT_INTERVAL
-    )
-    {
-        lastHeartbeat = now;
+    if (now - lastHeartbeat >= HEARTBEAT_INTERVAL) {
 
+        lastHeartbeat = now;
         sendHeartbeat();
     }
-
 
     // --------------------------------------------------------
     // PC timeout
     // --------------------------------------------------------
 
-    if (
-        now - lastPCAck
-        >= PC_TIMEOUT
-    )
-    {
-        if (pcConnected)
-        {
+    if (now - lastPCAck >= PC_TIMEOUT) {
+
+        if (pcConnected) {
+
             pcConnected = false;
 
-            Serial.println(
-                "PC connection lost"
-            );
+            Serial.println("PC connection lost");
 
             drawUI();
         }
     }
 
+    // --------------------------------------------------------
+    // IR TX
+    // --------------------------------------------------------
 
-    delay(10);
+    static int last_send = 0;
+    if (millis() - last_send >= 1000) {
+        // Serial.println("data send");
+        last_send = millis();
+        irTransmitter.send(0x01, 0x2E);
+    }
+
+    // No delay is required for IR reception.
+    // The receiver uses a ring buffer, so the loop can perform
+    // other work without immediately losing an edge.
 }
