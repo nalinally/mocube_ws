@@ -348,8 +348,10 @@ void onIrMessage(
         static_cast<unsigned long>(message.raw)
     );
 
-    // TODO:
-    // 必要ならここで受信したNECコマンドに応じた処理を行う。
+    if (message.command == 0x00) {
+        sendBroadcast("NEIGHBOR," + myMAC + "," + String(channel) + "," + String(message.address));
+    }
+
 }
 
 
@@ -631,10 +633,10 @@ void loop()
     // --------------------------------------------------------
 
     static int last_send = 0;
-    if (millis() - last_send >= 1000) {
+    if (millis() - last_send >= 100) {
         // Serial.println("data send");
         last_send = millis();
-        irTransmitter.send(0x01, 0x2E);
+        irTransmitter.send(myID, 0x00);
     }
 
     // No delay is required for IR reception.
