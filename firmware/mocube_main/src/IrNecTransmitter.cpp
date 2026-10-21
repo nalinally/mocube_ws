@@ -2,6 +2,8 @@
 
 #include "driver/rmt.h"
 
+#include "NecFormat.h"
+
 namespace {
 
 constexpr rmt_channel_t RMT_CHANNEL = RMT_CHANNEL_0;
@@ -12,6 +14,9 @@ constexpr rmt_channel_t RMT_CHANNEL = RMT_CHANNEL_0;
 constexpr uint8_t RMT_CLK_DIV = 80;
 
 constexpr uint8_t CARRIER_DUTY = 33;
+
+// leader 1 + data 32 + final mark 1
+constexpr size_t FRAME_ITEMS = 1 + nec::FRAME_BITS + 1;
 
 } // namespace
 
@@ -104,38 +109,39 @@ bool IrNecTransmitter::send(uint32_t rawNec)
     //   562 us mark
     //
 
-    rmt_item32_t items[34] = {};
+    rmt_item32_t items[FRAME_ITEMS] = {};
 
     // --------------------------------------------------------
     // Leader
     // --------------------------------------------------------
 
     items[0].level0 = 1;
-    items[0].duration0 = 9000;
+    items[0].duration0 = nec::LEADER_MARK_US;
 
     items[0].level1 = 0;
-    items[0].duration1 = 4500;
+    items[0].duration1 = nec::LEADER_SPACE_US;
 
 
     // --------------------------------------------------------
     // 32-bit data
     // --------------------------------------------------------
 
-    for (int bit = 0; bit < 32; ++bit) {
+    // MSB first (NecFormat.h 参照)
+    for (int bit = 0; bit < nec::FRAME_BITS; ++bit) {
 
         bool value =
-            (rawNec >> (31 - bit)) & 0x01;
+            (rawNec >> (nec::FRAME_BITS - 1 - bit)) & 0x01;
 
         items[bit + 1].level0 = 1;
-        items[bit + 1].duration0 = 562;
+        items[bit + 1].duration0 = nec::BIT_MARK_US;
 
         items[bit + 1].level1 = 0;
 
         if (value) {
-            items[bit + 1].duration1 = 1687;
+            items[bit + 1].duration1 = nec::ONE_SPACE_US;
         }
         else {
-            items[bit + 1].duration1 = 562;
+            items[bit + 1].duration1 = nec::ZERO_SPACE_US;
         }
     }
 
@@ -144,11 +150,11 @@ bool IrNecTransmitter::send(uint32_t rawNec)
     // Final mark
     // --------------------------------------------------------
 
-    items[33].level0 = 1;
-    items[33].duration0 = 562;
+    items[FRAME_ITEMS - 1].level0 = 1;
+    items[FRAME_ITEMS - 1].duration0 = nec::BIT_MARK_US;
 
-    items[33].level1 = 0;
-    items[33].duration1 = 0;
+    items[FRAME_ITEMS - 1].level1 = 0;
+    items[FRAME_ITEMS - 1].duration1 = 0;
 
 
     // --------------------------------------------------------
@@ -158,12 +164,15 @@ bool IrNecTransmitter::send(uint32_t rawNec)
     //
     // → RMT hardware continues transmission
     // → CPU immediately returns
+    //
+    // 1フレームは約 50〜90ms (leader 13.5ms + 32bit)。前の送信中に
+    // 呼ぶと rmt_write_items は前回の完了を待ってから書き込む。
     // --------------------------------------------------------
 
     esp_err_t result = rmt_write_items(
         RMT_CHANNEL,
         items,
-        34,
+        FRAME_ITEMS,
         false
     );
 
@@ -176,16 +185,10 @@ bool IrNecTransmitter::send(uint32_t rawNec)
         return false;
     }
 
-    // Serial.printf(
-    //     "IR TX: rmt_write_items successed: 0x%08lX\n",
-    //     rawNec
-    // );
-
     return true;
 }
 
-bool IrNecTransmitter::send(uint8_t id, uint8_t cmd) {
-    uint32_t rawNec = (uint32_t)((~cmd << 24 & 0xFF000000) | (cmd << 16 & 0x00FF0000) | (~id << 8 & 0x0000FF00) | (id & 0x000000FF));
-    // Serial.printf("~cmd: 0x%08lX, cmd: 0x%08lX, ~id: 0x%08lX, id: 0x%08lX, rawNec: 0x%08lX", ~cmd, cmd, ~id, id, rawNec);
-    return send(rawNec);
+bool IrNecTransmitter::send(uint8_t address, uint8_t command)
+{
+    return send(nec::encode(address, command));
 }

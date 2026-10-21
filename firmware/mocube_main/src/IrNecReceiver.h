@@ -1,12 +1,17 @@
 #pragma once
 
 #include <Arduino.h>
+#include <functional>
 
 /**
  * 3ch NEC infrared receiver.
  *
  * Each channel captures GPIO edges in an ISR and stores them in a
- * small ring buffer. NEC decoding is performed from loop(), not ISR.
+ * small ring buffer. NEC decoding is performed from update() (loop),
+ * not ISR. update() を長時間呼ばないとリングバッファが溢れ、
+ * 溢れたエッジは捨てられる (そのフレームはデコード失敗になる)。
+ *
+ * 受信モジュール (TSOP系) の出力は idle = HIGH, mark (搬送波あり) = LOW。
  */
 class IrNecReceiver {
 public:
@@ -18,20 +23,29 @@ public:
         uint32_t raw;
     };
 
-    using MessageCallback = void (*)(uint8_t channel, const Message& message);
+    using MessageCallback =
+        std::function<void(uint8_t channel, const Message& message)>;
 
-    IrNecReceiver(const uint8_t (&pins)[CHANNEL_COUNT]);
+    explicit IrNecReceiver(const uint8_t (&pins)[CHANNEL_COUNT]);
 
     void begin(MessageCallback callback = nullptr);
     void update();
 
 private:
     struct Edge {
-        uint32_t durationUs;
-        bool level;
+        uint32_t durationUs;  // 直前のエッジからこのエッジまでの時間
+        bool level;           // このエッジ直後のレベル
     };
 
     static constexpr size_t BUFFER_SIZE = 64;
+
+    enum class DecoderState : uint8_t {
+        Idle,
+        LeaderMark,   // 9ms mark の終わりを待つ
+        LeaderSpace,  // 4.5ms space の終わりを待つ
+        BitMark,      // 562us mark の終わりを待つ
+        BitSpace,     // 562us(0) / 1687us(1) space の終わりを待つ
+    };
 
     struct Channel {
         volatile uint32_t lastEdgeUs = 0;
@@ -39,15 +53,16 @@ private:
         volatile uint8_t readIndex = 0;
         Edge buffer[BUFFER_SIZE];
 
-        uint8_t state = 0;
+        DecoderState state = DecoderState::Idle;
         uint8_t bitCount = 0;
         uint32_t data = 0;
     };
 
     uint8_t _pins[CHANNEL_COUNT];
     Channel _channels[CHANNEL_COUNT];
-    MessageCallback _callback = nullptr;
+    MessageCallback _callback;
 
+    // ISR から参照するため唯一のインスタンスを保持する (複数生成は不可)
     static IrNecReceiver* _instance;
 
     static void IRAM_ATTR isr0();

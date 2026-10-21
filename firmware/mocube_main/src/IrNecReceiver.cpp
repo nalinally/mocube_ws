@@ -1,5 +1,25 @@
 #include "IrNecReceiver.h"
 
+#include "NecFormat.h"
+
+namespace {
+
+// デコード判定の許容範囲 (nec::UNIT_US 単位)
+constexpr uint32_t U = nec::UNIT_US;
+
+constexpr uint32_t LEADER_MARK_MIN_US = 12 * U;
+constexpr uint32_t LEADER_MARK_MAX_US = 20 * U;
+constexpr uint32_t LEADER_SPACE_MIN_US = 6 * U;
+constexpr uint32_t LEADER_SPACE_MAX_US = 10 * U;
+constexpr uint32_t BIT_MARK_MAX_US = 2 * U;
+constexpr uint32_t ZERO_SPACE_MAX_US = 2 * U;
+constexpr uint32_t ONE_SPACE_MAX_US = 4 * U;
+
+// これより長い間隔があれば前のフレームは途切れた/終わったとみなす
+constexpr uint32_t FRAME_GAP_US = 15000;
+
+}  // namespace
+
 IrNecReceiver* IrNecReceiver::_instance = nullptr;
 
 IrNecReceiver::IrNecReceiver(const uint8_t (&pins)[CHANNEL_COUNT])
@@ -117,11 +137,14 @@ bool IrNecReceiver::inRange(
 
 void IrNecReceiver::resetDecoder(Channel& ch)
 {
-    ch.state = 0;
+    ch.state = DecoderState::Idle;
     ch.bitCount = 0;
     ch.data = 0;
 }
 
+// level は「このエッジ直後のレベル」、durationUs は「直前の区間の長さ」。
+// つまり level == HIGH のエッジでは直前の mark (LOW) の長さが、
+// level == LOW のエッジでは直前の space (HIGH) の長さが分かる。
 void IrNecReceiver::processEdge(
     uint8_t channel,
     bool level,
@@ -129,39 +152,32 @@ void IrNecReceiver::processEdge(
 {
     Channel& ch = _channels[channel];
 
-    // An unusually long interval means that the previous frame
-    // was interrupted or has already ended.
-    if (durationUs > 15000) {
+    if (durationUs > FRAME_GAP_US) {
         resetDecoder(ch);
     }
 
     switch (ch.state) {
 
-    // Idle -> leader mark
-    case 0:
+    case DecoderState::Idle:
         if (level == LOW) {
-            ch.state = 1;
+            ch.state = DecoderState::LeaderMark;
         }
         break;
 
-    // Leader mark: approximately 9 ms
-    case 1:
+    case DecoderState::LeaderMark:
         if (level == HIGH) {
-            // Serial.print("leader_us: ");
-            // Serial.println(durationUs);
-            if (inRange(durationUs, 12 * 562, 20 * 562)) {
-                ch.state = 2;
+            if (inRange(durationUs, LEADER_MARK_MIN_US, LEADER_MARK_MAX_US)) {
+                ch.state = DecoderState::LeaderSpace;
             } else {
                 resetDecoder(ch);
             }
         }
         break;
 
-    // Leader space: approximately 4.5 ms
-    case 2:
+    case DecoderState::LeaderSpace:
         if (level == LOW) {
-            if (inRange(durationUs, 6 * 562, 10 * 562)) {
-                ch.state = 3;
+            if (inRange(durationUs, LEADER_SPACE_MIN_US, LEADER_SPACE_MAX_US)) {
+                ch.state = DecoderState::BitMark;
                 ch.bitCount = 0;
                 ch.data = 0;
             } else {
@@ -170,27 +186,24 @@ void IrNecReceiver::processEdge(
         }
         break;
 
-    // Bit mark: approximately 562 us
-    case 3:
+    case DecoderState::BitMark:
         if (level == HIGH) {
-            if (inRange(durationUs, 0, 2 * 562)) {
-                ch.state = 4;
+            if (inRange(durationUs, 0, BIT_MARK_MAX_US)) {
+                ch.state = DecoderState::BitSpace;
             } else {
                 resetDecoder(ch);
             }
         }
         break;
 
-    // Bit space:
-    // 0 -> approximately 562 us
-    // 1 -> approximately 1687 us
-    case 4:
+    case DecoderState::BitSpace:
         if (level == LOW) {
-            if (inRange(durationUs, 0, 2 * 562)) {
+            // MSB first で詰める (NecFormat.h 参照)
+            if (inRange(durationUs, 0, ZERO_SPACE_MAX_US)) {
                 ch.data <<= 1;
                 ch.bitCount++;
             }
-            else if (inRange(durationUs, 2 * 562, 4 * 562)) {
+            else if (inRange(durationUs, ZERO_SPACE_MAX_US, ONE_SPACE_MAX_US)) {
                 ch.data <<= 1;
                 ch.data |= 1;
                 ch.bitCount++;
@@ -200,11 +213,11 @@ void IrNecReceiver::processEdge(
                 break;
             }
 
-            if (ch.bitCount == 32) {
+            if (ch.bitCount == nec::FRAME_BITS) {
                 finishMessage(channel, ch);
                 resetDecoder(ch);
             } else {
-                ch.state = 3;
+                ch.state = DecoderState::BitMark;
             }
         }
         break;
@@ -219,22 +232,7 @@ void IrNecReceiver::finishMessage(
     uint8_t channel,
     Channel& decoder)
 {
-    const uint8_t address =
-        decoder.data & 0xFF;
-
-    const uint8_t addressInv =
-        (decoder.data >> 8) & 0xFF;
-
-    const uint8_t command =
-        (decoder.data >> 16) & 0xFF;
-
-    const uint8_t commandInv =
-        (decoder.data >> 24) & 0xFF;
-
-    if (
-        static_cast<uint8_t>(address ^ addressInv) != 0xFF ||
-        static_cast<uint8_t>(command ^ commandInv) != 0xFF
-    ) {
+    if (!nec::isValid(decoder.data)) {
         Serial.printf(
             "IR RX%d: INVALID DATA=0x%08lX\n",
             channel + 1,
@@ -244,12 +242,12 @@ void IrNecReceiver::finishMessage(
     }
 
     Message message {
-        address,
-        command,
+        nec::addressOf(decoder.data),
+        nec::commandOf(decoder.data),
         decoder.data
     };
 
-    if (_callback != nullptr) {
+    if (_callback) {
         _callback(channel, message);
     } else {
         Serial.printf(
