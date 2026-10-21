@@ -11,8 +11,7 @@
 // Wi-Fi
 // ============================================================
 
-const char* WIFI_SSID = "JSK300";
-const char* WIFI_PASSWORD = "89sk389sk3";
+#include "WifiSecrets.h"  // WIFI_SSID, WIFI_PASSWORD
 
 
 // ============================================================

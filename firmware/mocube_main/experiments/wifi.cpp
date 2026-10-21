@@ -2,8 +2,9 @@
 #include <WiFiUdp.h>
 #include <M5Unified.h>
 
-const char* ssid = "JSK300";
-const char* password = "89sk389sk3";
+#include "WifiSecrets.h"
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
 
 WiFiUDP udp;
 const int PORT = 5000;
