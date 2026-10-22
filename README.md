@@ -15,7 +15,7 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | ファームウェア全体 | [firmware/README.md](firmware/README.md) | PlatformIO の環境構築・書き込み |
 | モジュールのファーム | [firmware/mocube_main/README.md](firmware/mocube_main/README.md) | クラス構成、起動/ループの流れ、赤外線デコード、既知の落とし穴 |
 | ROS ブリッジ | [src/mocube_bridge/README.md](src/mocube_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル |
-| メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules` の各フィールドの意味 |
+| メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands` の各フィールドの意味 |
 
 ## ディレクトリ構成
 
@@ -47,7 +47,8 @@ mocube_ws/
  ┌────────────── PC (ROS 2) ─────────────────────────────┐
  │  device_manager ノード                                │
  │   ├ DeviceRegistry ── devices.json (MAC->ID を永続化) │
- │   └ publish ──> /modules (Modules.msg, 100 Hz)        │
+ │   ├ publish ──> /modules (Modules.msg, 100 Hz)        │
+ │   └ subscribe <── /servo_commands (ServoCommands)     │
  └───────────────────────────────────────────────────────┘
 ```
 
@@ -60,6 +61,7 @@ mocube_ws/
    隣のモジュールがそれを受信器 ch (0/1/2 = 面 u/r/f) で受けると
    `NEIGHBOR,<MAC>,<ch>,<相手のID>` を PC に送る
 5. PC は全モジュールの状態を `/modules` に流し続ける
+6. `/servo_commands` に指令が来ると、PC は中身を検査して `module_id` のモジュールに `KRS,...` を送る
 
 ## セットアップ
 
@@ -109,9 +111,19 @@ ros2 topic echo /modules
 | `ACK,<id>` | HEARTBEAT への応答。PC 接続中とみなし、自分の ID と違えばこの ID に切り替える | `PcLink` |
 | `KRS,setPos,<servo>,<pos>` | サーボ (ICS ID 0..5) を位置指令 (KRS の範囲 3500..11500, 中央 7500) | `ServoController` |
 | `KRS,setFree,<servo>` | サーボを脱力 | `ServoController` |
+| `KRS,setFreeAll` | 全サーボ (ICS ID 0..5) を脱力 | `ServoController` |
 | `IR,send,<raw>` | 32bit NEC フレームを送信 (`0x` 付き 16 進可) | `NeighborDetector` |
 
-`KRS` / `IR` は現在 device_manager からは送っていません。手で試すときは例えば:
+`KRS` は device_manager が `/servo_commands` を受けて送ります (`IR` は現在どこからも送っていません)。
+ROS 側はファームの文字列コマンドを知らなくてよく、`mode` (`FREE=0` / `POSITION=1`) と数値で指定します。
+
+```bash
+# モジュール 0 のサーボ 0 を中央へ、モジュール 1 の全サーボを脱力 (servo: -1 = ALL_SERVOS)
+ros2 topic pub --once /servo_commands mocube_msgs/msg/ServoCommands \
+  "{commands: [{module_id: 0, servo: 0, mode: 1, position: 7500}, {module_id: 1, servo: -1, mode: 0}]}"
+```
+
+ROS を通さずに手で試すときは例えば:
 
 ```bash
 echo -n "KRS,setPos,0,7500" | nc -u -w1 <モジュールのIP> 5000
@@ -121,6 +133,12 @@ echo -n "KRS,setPos,0,7500" | nc -u -w1 <モジュールのIP> 5000
 
 - **PC -> モジュールの新コマンド**: ファームで機能クラスに `handleCommand(const protocol::Packet&)` を作り、
   `main.cpp` で `pcLink.onCommand("XXX", ...)` に登録。`Protocol.h` とこの README の表に追記
+- **それを ROS から送れるようにする** (`/servo_commands` と同じ形にそろえる):
+  1. `mocube_msgs` に `module_id` を持つ型付きのメッセージ (`XxxCommand`) と、その配列 (`XxxCommands`) を作る。
+     ファームの文字列 (`"setPos"` など) は ROS のメッセージに出さず、モードは定数で表す
+  2. `protocol.py` に `format_xxx()` を作り、引数の範囲検査もそこで行う (範囲外は `ProtocolError`)。単体テストを書く
+  3. `device_manager.py` にメッセージ -> パケットの変換関数 (`to_servo_packet` と同様) を作り、
+     subscription のコールバックから `_send_to_module()` で送る
 - **モジュール -> PC の新コマンド**: ファームの `Protocol.h` に `makeXxx()` を追加して `pcLink.broadcast()`。
   PC 側は `protocol.py` の `Command` に名前を足し、`device_manager.py` の `_handlers` にハンドラを登録
 - **`/modules` に情報を足す**: `Module.msg` 等にフィールドを追加 → `device_registry.Device` に状態を追加
