@@ -75,7 +75,7 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 |---|---|---|
 | REGISTER | 2000 ms | ID 未取得 (`id() < 0`) の間だけ |
 | HEARTBEAT | 1000 ms | 常に |
-| PC タイムアウト | 3000 ms | 最後の `ID` / 一致する `ACK` からの経過 |
+| PC タイムアウト | 3000 ms | 最後の `ID` / `ACK` からの経過 |
 | IR ビーコン | 100 ms | address = 自分の ID (未取得なら 0xFF), command = 0x00 |
 | Wi-Fi 切断時の待ち | 1000 ms | |
 
@@ -93,7 +93,8 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 - `update()` は **1 ループで 1 パケットしか読まない**。受信が溜まると処理が遅れる
 - 受信バッファは 255 byte。長いパケットは切り捨て
 - `ID,<id>`: 無条件にその ID を採用 (既に ID があっても上書き)
-- `ACK,<id>`: `id() >= 0` かつ自分の ID と一致したときだけ PC 接続中に更新
+- `ACK,<id>`: PC 接続中に更新。自分の ID と違えば (未取得でも) その ID に切り替える。
+  PC の台帳が正で、台帳を消した / 別の台帳で起動したときの食い違いをここで直す
 - それ以外のコマンドは `onCommand()` の登録順に文字列比較して最初に一致したハンドラへ (最大 8 個)。
   どれにも一致しなければ無視 (他モジュールのブロードキャストもここに来る)
 
@@ -168,6 +169,7 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 | `IR receiver/transmitter ready` | IR 初期化完了 |
 | `Assigned ID: N` | PC から ID を受け取った |
 | `PC heartbeat OK` | ACK 受信 (約 1 秒ごと) |
+| `ID changed by ACK: A -> B` | PC の台帳上の ID が違ったので B に切り替えた |
 | `PC connection lost` | 3 秒 ACK が来ない |
 | `IR RXn: ADDR=0x.. CMD=0x.. DATA=0x........` | 受信器 n (1 始まり) でフレームを受信 |
 | `IR RXn: INVALID DATA=0x........` | 32bit 読めたが反転チェック NG (ノイズ、別の送信機、ビット化け) |

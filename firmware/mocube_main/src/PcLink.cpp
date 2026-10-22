@@ -160,19 +160,23 @@ bool PcLink::dispatch(const protocol::Packet& packet)
     }
 
     // Heartbeat ACK: "ACK,<id>"
+    // ACK は PC がこのモジュール宛てに返すので、ID が違えば PC の台帳に合わせる
+    // (PC の台帳を消した / 別の台帳で起動した場合に食い違う)
     if (command == protocol::command::ACK && packet.count >= 2) {
 
         const int receivedID = packet.at(1).toInt();
 
-        if (_id >= 0 && receivedID == _id) {
-            _lastPcAck = millis();
-            _pcConnected = true;
-
-            Serial.println("PC heartbeat OK");
-
-            return true;
+        if (receivedID != _id) {
+            Serial.printf("ID changed by ACK: %d -> %d\n", _id, receivedID);
+            _id = receivedID;
         }
-        return false;
+
+        _lastPcAck = millis();
+        _pcConnected = true;
+
+        Serial.println("PC heartbeat OK");
+
+        return true;
     }
 
     for (int i = 0; i < _handlerCount; ++i) {
