@@ -109,24 +109,24 @@ ros2 topic echo /modules
 |---|---|---|
 | `ID,<id>` | REGISTER への応答。モジュールはこの ID を採用する | `PcLink` |
 | `ACK,<id>` | HEARTBEAT への応答。PC 接続中とみなし、自分の ID と違えばこの ID に切り替える | `PcLink` |
-| `KRS,setPos,<servo>,<pos>` | サーボ (ICS ID 0..5) を位置指令 (KRS の範囲 3500..11500, 中央 7500) | `ServoController` |
+| `KRS,setPos,<servo>,<deg>` | サーボ (ICS ID 0..5) を角度指令 (-135..135 [deg], 小数可, 0 が中央)。ファームが `degPos()` で ICS の値 (3500..11500) に変換する。回転モードのサーボでは速さと向き (0 で停止) | `ServoController` |
 | `KRS,setFree,<servo>` | サーボを脱力 | `ServoController` |
 | `KRS,setFreeAll` | 全サーボ (ICS ID 0..5) を脱力 | `ServoController` |
 | `IR,send,<raw>` | 32bit NEC フレームを送信 (`0x` 付き 16 進可) | `NeighborDetector` |
 
 `KRS` は device_manager が `/servo_commands` を受けて送ります (`IR` は現在どこからも送っていません)。
-ROS 側はファームの文字列コマンドを知らなくてよく、`mode` (`FREE=0` / `POSITION=1`) と数値で指定します。
+ROS 側はファームの文字列コマンドを知らなくてよく、`mode` (`FREE=0` / `POSITION=1`) と角度 [deg] で指定します。
 
 ```bash
-# モジュール 0 のサーボ 0 を中央へ、モジュール 1 の全サーボを脱力 (servo: -1 = ALL_SERVOS)
+# モジュール 0 のサーボ 0 を中央 (0 deg) へ、モジュール 1 の全サーボを脱力 (servo: -1 = ALL_SERVOS)
 ros2 topic pub --once /servo_commands mocube_msgs/msg/ServoCommands \
-  "{commands: [{module_id: 0, servo: 0, mode: 1, position: 7500}, {module_id: 1, servo: -1, mode: 0}]}"
+  "{commands: [{module_id: 0, servo: 0, mode: 1, angle: 0.0}, {module_id: 1, servo: -1, mode: 0}]}"
 ```
 
 ROS を通さずに手で試すときは例えば:
 
 ```bash
-echo -n "KRS,setPos,0,7500" | nc -u -w1 <モジュールのIP> 5000
+echo -n "KRS,setPos,0,0" | nc -u -w1 <モジュールのIP> 5000
 ```
 
 ## 新しい機能を追加するとき
