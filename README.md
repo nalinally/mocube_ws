@@ -81,9 +81,11 @@ Wi-Fi の SSID / パスワードは `firmware/mocube_main/include/WifiSecrets.h`
 ```bash
 ros2 run mocube_bridge device_manager
 ros2 topic echo /modules
+ros2 run mocube_bridge servo_teleop   # キー操作でサーボを手動で動かす (別ターミナルで)
 ```
 
 モジュールの電源を入れると、画面に ID が表示され、PC ランプが緑になります。
+`servo_teleop` の操作方法は [src/mocube_bridge/README.md](src/mocube_bridge/README.md#servo_teleop-サーボの手動操作)。
 
 ## 通信プロトコル (UDP, ポート 5000)
 

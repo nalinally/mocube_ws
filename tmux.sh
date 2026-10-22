@@ -6,7 +6,7 @@
 #
 # window:
 #   claude : Claude Code
-#   ros    : 左 = device_manager / 右上 = /modules の echo / 右下 = colcon build
+#   ros    : 左上 = device_manager / 左下 = servo_teleop / 右上 = /modules の echo / 右下 = colcon build
 #   pio    : 左上 = 書き込み / 左下 = シリアルモニタ / 右 = ポート確認 (WSL なら usbipd のメモ)
 #            書き込み中はポートを掴めないので、モニタは Ctrl+C で止めてから書き込む
 #   memo   : 落書き用
@@ -36,10 +36,12 @@ tmux send-keys -t "$SESSION:claude" "claude" Enter
 ROS_MAIN=$(tmux new-window -t "$SESSION" -n ros -c "$WS" -P -F '#{pane_id}')
 ROS_ECHO=$(tmux split-window -t "$ROS_MAIN" -h -c "$WS" -P -F '#{pane_id}')
 ROS_BUILD=$(tmux split-window -t "$ROS_ECHO" -v -c "$WS" -P -F '#{pane_id}')
-for pane in "$ROS_MAIN" "$ROS_ECHO" "$ROS_BUILD"; do
+ROS_TELEOP=$(tmux split-window -t "$ROS_MAIN" -v -c "$WS" -P -F '#{pane_id}')
+for pane in "$ROS_MAIN" "$ROS_TELEOP" "$ROS_ECHO" "$ROS_BUILD"; do
     tmux send-keys -t "$pane" "source install/setup.bash && clear" Enter
 done
 tmux send-keys -t "$ROS_MAIN" "ros2 run mocube_bridge device_manager"
+tmux send-keys -t "$ROS_TELEOP" "ros2 run mocube_bridge servo_teleop"
 tmux send-keys -t "$ROS_ECHO" "ros2 topic echo /modules"
 tmux send-keys -t "$ROS_BUILD" "colcon build && source install/setup.bash"
 
