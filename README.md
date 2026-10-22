@@ -14,7 +14,7 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | WS 全体 | この README | 構成、セットアップ、通信プロトコル、症状別の調べ方 |
 | ファームウェア全体 | [firmware/README.md](firmware/README.md) | PlatformIO の環境構築・書き込み |
 | モジュールのファーム | [firmware/mocube_main/README.md](firmware/mocube_main/README.md) | クラス構成、起動/ループの流れ、赤外線デコード、既知の落とし穴 |
-| ROS ブリッジ | [src/mocube_bridge/README.md](src/mocube_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル |
+| ROS ブリッジ | [src/mocube_bridge/README.md](src/mocube_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル、servo_teleop (サーボの手動操作) の使い方 |
 | メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands` の各フィールドの意味 |
 
 ## ディレクトリ構成
