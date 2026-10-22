@@ -198,14 +198,12 @@ void IrNecReceiver::processEdge(
 
     case DecoderState::BitSpace:
         if (level == LOW) {
-            // MSB first で詰める (NecFormat.h 参照)
+            // LSB first で詰める (NecFormat.h 参照)
             if (inRange(durationUs, 0, ZERO_SPACE_MAX_US)) {
-                ch.data <<= 1;
                 ch.bitCount++;
             }
             else if (inRange(durationUs, ZERO_SPACE_MAX_US, ONE_SPACE_MAX_US)) {
-                ch.data <<= 1;
-                ch.data |= 1;
+                ch.data |= 1UL << ch.bitCount;
                 ch.bitCount++;
             }
             else {

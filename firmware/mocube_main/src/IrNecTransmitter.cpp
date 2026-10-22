@@ -126,11 +126,11 @@ bool IrNecTransmitter::send(uint32_t rawNec)
     // 32-bit data
     // --------------------------------------------------------
 
-    // MSB first (NecFormat.h 参照)
+    // LSB first (NecFormat.h 参照)
     for (int bit = 0; bit < nec::FRAME_BITS; ++bit) {
 
         bool value =
-            (rawNec >> (nec::FRAME_BITS - 1 - bit)) & 0x01;
+            (rawNec >> bit) & 0x01;
 
         items[bit + 1].level0 = 1;
         items[bit + 1].duration0 = nec::BIT_MARK_US;

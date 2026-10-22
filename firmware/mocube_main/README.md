@@ -148,12 +148,13 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 - ESP32 の RMT (channel 0, 1 tick = 1 us) で搬送波 38 kHz をハードウェア生成
 - `send()` は `rmt_write_items(..., wait_tx_done=false)` で即座に戻る。ただし前のフレームの送信中に呼ぶと
   その完了を待つ
-- ビット順は **MSB first** (`NecFormat.h` のコメント参照)。受信側も MSB first で詰めているので
-  モジュール同士では一致する
+- ビット順は一般的な NEC と同じ **LSB first** (`NecFormat.h` のコメント参照)。受信側も LSB first で詰める。
+  旧ファーム (MSB first) とは通信できないので、全モジュールを書き換えること
 
 ### NecFormat
 
-32bit フレーム = `[~command][command][~address][address]` (上位から)。
+32bit フレーム = `[~command][command][~address][address]` (上位から)。bit0 から順に送るので、
+空中では address → ~address → command → ~command の順になる (一般的な NEC と同じ)。
 `encode()` / `isValid()` / `addressOf()` / `commandOf()` を送受信で共有しています。
 
 ## デバッグ
