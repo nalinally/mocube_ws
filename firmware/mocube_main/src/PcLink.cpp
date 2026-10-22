@@ -64,9 +64,9 @@ void PcLink::onCommand(const char* command, CommandHandler handler)
     ++_handlerCount;
 }
 
-bool PcLink::update(unsigned long now)
+void PcLink::update(unsigned long now)
 {
-    bool changed = receive();
+    receive();
 
     if (_id < 0 &&
         now - _lastRegister >= config::REGISTER_INTERVAL_MS) {
@@ -86,11 +86,7 @@ bool PcLink::update(unsigned long now)
         _pcConnected = false;
 
         Serial.println("PC connection lost");
-
-        changed = true;
     }
-
-    return changed;
 }
 
 IPAddress PcLink::broadcastAddress() const
@@ -116,12 +112,12 @@ void PcLink::broadcast(const String& message)
     _udp.endPacket();
 }
 
-bool PcLink::receive()
+void PcLink::receive()
 {
     const int packetSize = _udp.parsePacket();
 
     if (packetSize <= 0) {
-        return false;
+        return;
     }
 
     char buffer[RX_BUFFER_SIZE];
@@ -130,7 +126,7 @@ bool PcLink::receive()
         _udp.read(buffer, sizeof(buffer) - 1);
 
     if (length <= 0) {
-        return false;
+        return;
     }
 
     buffer[length] = '\0';
@@ -138,10 +134,10 @@ bool PcLink::receive()
     protocol::Packet packet;
     protocol::parse(String(buffer), packet);
 
-    return dispatch(packet);
+    dispatch(packet);
 }
 
-bool PcLink::dispatch(const protocol::Packet& packet)
+void PcLink::dispatch(const protocol::Packet& packet)
 {
     const String& command = packet.command();
 
@@ -156,7 +152,7 @@ bool PcLink::dispatch(const protocol::Packet& packet)
         Serial.print("Assigned ID: ");
         Serial.println(_id);
 
-        return true;
+        return;
     }
 
     // Heartbeat ACK: "ACK,<id>"
@@ -176,17 +172,16 @@ bool PcLink::dispatch(const protocol::Packet& packet)
 
         Serial.println("PC heartbeat OK");
 
-        return true;
+        return;
     }
 
     for (int i = 0; i < _handlerCount; ++i) {
         if (command == _handlers[i].command) {
             _handlers[i].handler(packet);
-            return false;
+            return;
         }
     }
 
     // 他モジュールの REGISTER / HEARTBEAT / NEIGHBOR ブロードキャストも
     // 届くので、未知のコマンドは黙って無視する。
-    return false;
 }

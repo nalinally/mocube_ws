@@ -56,7 +56,7 @@ mocube_ws/
 2. PC は MAC を台帳で引き (無ければ新しい ID を払い出して保存し)、`ID,<id>` を返す
 3. モジュールは 1 秒ごとに `HEARTBEAT,<MAC>` を送り、PC は `ACK,<id>` を返す
    - PC: 3 秒 HEARTBEAT が来なければそのモジュールを offline にする
-   - モジュール: 3 秒 ACK が来なければ画面の PC ランプを赤にする
+   - モジュール: 3 秒 ACK が来なければ画面の PC バッジを赤にする
 4. モジュールは 100 ms ごとに自分の ID を赤外線ビーコンとして送る。
    隣のモジュールがそれを受信器 ch (0/1/2 = 面 u/r/f) で受けると
    `NEIGHBOR,<MAC>,<ch>,<相手のID>` を PC に送る
@@ -84,7 +84,7 @@ ros2 topic echo /modules
 ros2 run mocube_bridge servo_teleop   # キー操作でサーボを手動で動かす (別ターミナルで)
 ```
 
-モジュールの電源を入れると、画面に ID が表示され、PC ランプが緑になります。
+モジュールの電源を入れると、画面に ID が大きく表示され、WiFi / PC のバッジが緑になります。
 `servo_teleop` の操作方法は [src/mocube_bridge/README.md](src/mocube_bridge/README.md#servo_teleop-サーボの手動操作)。
 
 ## 通信プロトコル (UDP, ポート 5000)
@@ -153,16 +153,16 @@ echo -n "KRS,setPos,0,0" | nc -u -w1 <モジュールのIP> 5000
 
 | 症状 | まず疑うところ |
 |---|---|
-| モジュール画面が `Connecting...` のまま | SSID / パスワード (`WifiSecrets.h`)。2.4 GHz の AP か。`PcLink::connectWiFi` は繋がるまで永久に待つ |
+| モジュール画面が `Connecting` のまま | SSID / パスワード (`WifiSecrets.h`)。2.4 GHz の AP か。`PcLink::connectWiFi` は繋がるまで永久に待つ |
 | 画面の ID が `--` のまま | PC に REGISTER が届いていない / 返信が届いていない。device_manager が動いているか、PC とモジュールが同じサブネットか、PC の FW で UDP 5000 が開いているか。WSL2 なら mirrored ネットワークモードが必要 (NAT だと LAN のブロードキャストが届かない) |
-| ID は出るが PC ランプが赤のまま | ACK が届いていない (Wi-Fi 品質、PC の FW)。ID の食い違いは ACK で自動的に直る |
+| ID は出るが PC バッジが赤のまま | ACK が届いていない (Wi-Fi 品質、PC の FW)。ID の食い違いは ACK で自動的に直る |
 | モジュールの ID が前回と変わった | PC の台帳 (既定 `~/.ros/mocube/devices.json`) を消した / `device_file` で別の台帳を指定した。起動ログ `Loaded N devices from <パス>` を確認 |
 | `/modules` で online が true/false を行き来する | HEARTBEAT の取りこぼし (Wi-Fi 品質)。PC 側 timeout 3 秒 / 送信 1 秒なので 3 回連続で落ちると offline |
 | receivers の address がずっと -1 | 隣接モジュールのビーコンが届いていない。IR の向き・距離、相手の TX (G1)、自分の RX ピン (G8/G7/G39)。シリアルモニタに `IR RX` ログが出ているか |
 | receivers の address が 255 | 相手モジュールがまだ ID を取得していない |
 | receivers の address が自分の ID | 自分の IR TX の反射を自分の RX が受けている |
 | 隣接を外しても receivers が古い値のまま | 仕様。隣接情報は上書きされるだけで消えない。`t` (受信時刻) を見て古さを判定する |
-| サーボが動かない | `KRS` パケットが届いているか、ICS 配線 (TX/RX/EN = G38/G5/G6)、サーボ ID (0..5)。画面の Servo 欄は「送った指令」なので動いたかどうかは分からない |
+| サーボが動かない | `KRS` パケットが届いているか、ICS 配線 (TX/RX/EN = G38/G5/G6)、サーボ ID (0..5)。画面のサーボ欄は「送った指令」なので動いたかどうかは分からない |
 | device_manager が起動直後に落ちる | `devices.json` が壊れている (JSON エラー)、または UDP 5000 を他のプロセスが使っている (`Address already in use`) |
 
 ## 既知の問題 / 仕様上の注意

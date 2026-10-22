@@ -49,12 +49,13 @@ void setup()
 
     delay(500);
 
+    display.begin();
     display.showConnecting();
     pcLink.connectWiFi(WIFI_SSID, WIFI_PASSWORD, [] {
         display.showConnectingProgress();
     });
 
-    display.draw(pcLink, servos);
+    display.update(pcLink, servos, millis());
 
     servos.begin();
     neighbors.begin();
@@ -81,7 +82,7 @@ void loop()
     if (!pcLink.isWiFiConnected()) {
 
         pcLink.handleWiFiLost();
-        display.draw(pcLink, servos);
+        display.update(pcLink, servos, millis());
 
         delay(config::WIFI_RETRY_DELAY_MS);
         return;
@@ -89,9 +90,8 @@ void loop()
 
     const unsigned long now = millis();
 
-    if (pcLink.update(now)) {
-        display.draw(pcLink, servos);
-    }
+    pcLink.update(now);
+    display.update(pcLink, servos, now);
 
     neighbors.updateBeacon(now);
 

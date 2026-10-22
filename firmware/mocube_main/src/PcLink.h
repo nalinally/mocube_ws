@@ -30,9 +30,8 @@ public:
     // UDP を開いて最初の REGISTER を送る (connectWiFi の後に呼ぶ)
     void begin(uint16_t port);
 
-    // 受信1パケットの処理と REGISTER / HEARTBEAT / タイムアウト判定。
-    // 画面に出している状態 (ID, PC接続) が変わったら true を返す。
-    bool update(unsigned long now);
+    // 受信1パケットの処理と REGISTER / HEARTBEAT / タイムアウト判定
+    void update(unsigned long now);
 
     // Wi-Fi 切断時に呼ぶ。PC 接続状態を落とす
     void handleWiFiLost();
@@ -72,6 +71,6 @@ private:
     IPAddress broadcastAddress() const;
 
     // 1パケット受信して処理。表示更新が必要なら true
-    bool receive();
-    bool dispatch(const protocol::Packet& packet);
+    void receive();
+    void dispatch(const protocol::Packet& packet);
 };

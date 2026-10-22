@@ -19,7 +19,7 @@ mocube_main/
 │   ├── PcLink.h/.cpp           # Wi-Fi, UDP, ID 取得, heartbeat, コマンド振り分け
 │   ├── ServoController.h/.cpp  # KRS サーボ (ICS)
 │   ├── NeighborDetector.h/.cpp # 赤外線ビーコンによる隣接検出
-│   ├── StatusDisplay.h/.cpp    # LCD 表示
+│   ├── StatusDisplay.h/.cpp    # LCD 表示 (ID / WiFi / PC / IP / サーボ)
 │   ├── NecFormat.h             # NEC フレームの定数・エンコード・検証
 │   ├── IrNecReceiver.h/.cpp    # 3ch 赤外線受信 (ISR + デコード)
 │   └── IrNecTransmitter.h/.cpp # 赤外線送信 (RMT)
@@ -52,8 +52,8 @@ main.cpp
 ## 起動シーケンス (`setup()`)
 
 1. `M5.begin()`, `Serial.begin(115200)`, 500 ms 待ち
-2. `display.showConnecting()` → `pcLink.connectWiFi()` — **繋がるまでブロック** (500 ms ごとに `.` を表示)
-3. `display.draw()` (ID は `--`)
+2. `display.begin()` (画面外バッファの確保) → `display.showConnecting()` → `pcLink.connectWiFi()` — **繋がるまでブロック** (500 ms ごとに `.` を表示)
+3. `display.update()` (ID は `--`)
 4. `servos.begin()` — `Serial1` を RX=G5 / TX=G38 で開いてから ICS ライブラリを初期化
 5. `neighbors.begin()` — IR 受信の割り込み登録、RMT 初期化
 6. `KRS` / `IR` コマンドのハンドラ登録
@@ -65,9 +65,9 @@ main.cpp
 M5.update()
 neighbors.updateReceiver()        ← 毎回。ビーコンを受けたらここから NEIGHBOR を送る
 if Wi-Fi 切断:
-    PC 接続を false にして再描画、1 秒 delay して return   ← この間ビーコン送信は止まる
+    PC 接続を false にして display.update()、1 秒 delay して return   ← この間ビーコン送信は止まる
 pcLink.update(now)                ← UDP 1 パケット処理 / REGISTER / HEARTBEAT / ACK タイムアウト
-    → 表示が変わったら display.draw()
+display.update(pcLink, servos, now) ← 表示内容が変わっていたら描き直す (最短 100 ms 間隔)
 neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 ```
 
@@ -78,9 +78,6 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 | PC タイムアウト | 3000 ms | 最後の `ID` / `ACK` からの経過 |
 | IR ビーコン | 100 ms | address = 自分の ID (未取得なら 0xFF), command = 0x00 |
 | Wi-Fi 切断時の待ち | 1000 ms | |
-
-`display.draw()` は ID 受信時、ACK を受けるたび (= 約 1 秒ごと)、PC タイムアウト時、Wi-Fi 切断中の毎ループで呼ばれ、
-毎回全画面を塗り直します。サーボ欄はサーボ指令を受けた瞬間には更新されず、次の ACK で更新されます。
 
 ## 各クラスの詳細
 
@@ -114,7 +111,7 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 - `setPos` は角度 [deg] を受け、`IcsBaseClass::degPos()` で ICS のポジション (7500 + deg × 29.633) に変換する。
   `degPos()` は ±180 まで変換してしまうので、`Config.h` の `KRS_MAX_DEG` (±135 = 3500..11500) を超える指令は捨てる
 - 回転モードのサーボ (EEPROM で設定) には同じ `setPos` で速さと向きを送る (0 で停止)。ファームはモードを区別しない
-- 画面の `P<deg>` (整数に丸める) / `F` は「最後に送った指令」。サーボから読み返した値ではない
+- 画面のサーボ欄 (角度 / `FREE`) は「最後に送った指令」。サーボから読み返した値ではない
 - ICS ライブラリの `begin()` は内部で `Serial1.begin(baud, SERIAL_8E1)` をピン指定なしで呼ぶ。
   現在の arduino-esp32 では既に設定したピンが保持されるが、コアのバージョンを古くすると
   デフォルトピンに戻ってサーボが無反応になる可能性がある
@@ -162,6 +159,27 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 32bit フレーム = `[~command][command][~address][address]` (上位から)。bit0 から順に送るので、
 空中では address → ~address → command → ~command の順になる (一般的な NEC と同じ)。
 `encode()` / `isValid()` / `addressOf()` / `commandOf()` を送受信で共有しています。
+
+### StatusDisplay (画面)
+
+```
+┌────────────────────────┐
+│ID          [  WiFi  ]  │  ID: 7 セグ風の大きな数字 (未取得なら --)
+│ 03                     │  WiFi / PC: 緑 = OK / 赤 = NG のバッジ
+│            [   PC   ]  │
+│     192.168.97.12      │  IP (Wi-Fi 切断中は赤で "No WiFi")
+│────────────────────────│
+│0  FREE      1     +45  │  サーボ 0..5 に最後に送った指令
+│2  FREE      3    -135  │  FREE = 脱力 / 数字 = 角度 [deg] (整数に丸める)
+│4  FREE      5       0  │  回転モードのサーボでは速さと向き (0 = 停止)
+└────────────────────────┘
+```
+
+- `update()` を毎ループ呼び、表示に使う値 (`Snapshot`: ID, Wi-Fi, PC, IP, 各サーボの状態) が前回と違うときだけ描き直す。
+  サーボ指令を受けると次のループで (最短 100 ms 間隔で) 反映される
+- 128x128 の画面外バッファ (`M5Canvas`, 内部 RAM 32 KB) に描いてから一度に転送するのでちらつかない。
+  1 回の描画は数 ms。確保に失敗したら LCD に直接描く (シリアルに `createSprite failed`)
+- `PcLink::update()` は表示のことを知らない (以前は「表示が変わったか」を返していた)
 
 ## デバッグ
 
