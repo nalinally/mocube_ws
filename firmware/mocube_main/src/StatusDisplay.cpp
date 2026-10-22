@@ -95,7 +95,7 @@ void StatusDisplay::draw(const PcLink& link, const ServoController& servos)
         M5.Lcd.print("No WiFi");
     }
 
-    // KRS: 2列 x 3行, "<id>:F" (free) / "<id>:P<pos>" (position)
+    // KRS: 2列 x 3行, "<id>:F" (free) / "<id>:P<deg>" (position, 整数に丸める)
     M5.Lcd.setTextColor(COLOR_WHITE);
     M5.Lcd.setTextSize(1);
     M5.Lcd.setCursor(10, 59);
@@ -117,7 +117,7 @@ void StatusDisplay::draw(const PcLink& link, const ServoController& servos)
             }
             else {
                 M5.Lcd.print(":P");
-                M5.Lcd.print(servos.position(servoId));
+                M5.Lcd.print(lroundf(servos.position(servoId)));
             }
         }
     }

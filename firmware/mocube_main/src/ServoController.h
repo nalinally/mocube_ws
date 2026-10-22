@@ -14,28 +14,29 @@ class ServoController {
 public:
     enum class Mode {
         Free,      // 脱力 (setFree)
-        Position,  // 位置指令中 (setPos)
+        Position,  // 角度指令中 (setPos)
     };
 
     ServoController();
 
     void begin();
 
-    bool setPosition(int servoId, int position);
+    // deg: -KRS_MAX_DEG..KRS_MAX_DEG (0 が中央)。ICS のポジションへは degPos() で変換する
+    bool setPosition(int servoId, float deg);
     bool setFree(int servoId);
     void setFreeAll();
 
-    // "KRS,setPos,<servo>,<pos>" / "KRS,setFree,<servo>" / "KRS,setFreeAll"
+    // "KRS,setPos,<servo>,<deg>" / "KRS,setFree,<servo>" / "KRS,setFreeAll"
     void handleCommand(const protocol::Packet& packet);
 
     Mode mode(int servoId) const { return _modes[servoId]; }
-    int position(int servoId) const { return _positions[servoId]; }
+    float position(int servoId) const { return _positions[servoId]; }  // [deg]
 
 private:
     IcsHardSerialClass _krs;
 
     Mode _modes[config::KRS_SERVO_COUNT];
-    int _positions[config::KRS_SERVO_COUNT];
+    float _positions[config::KRS_SERVO_COUNT];  // [deg]
 
     static bool isValidId(int servoId);
 };

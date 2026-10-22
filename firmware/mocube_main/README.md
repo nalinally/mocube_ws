@@ -111,7 +111,10 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
   ライブラリ内で最大 timeout (1000 ms) ブロックし得て、その間 IR デコードも UDP も止まる
 - `setFreeAll` は ICS ID 0..`KRS_SERVO_COUNT`-1 (0..5) に順に `setFree` を送る。
   応答の無い ID があるとそれぞれ timeout まで待つので、最悪 6 秒止まる
-- 画面の `P<pos>` / `F` は「最後に送った指令」。サーボから読み返した値ではない
+- `setPos` は角度 [deg] を受け、`IcsBaseClass::degPos()` で ICS のポジション (7500 + deg × 29.633) に変換する。
+  `degPos()` は ±180 まで変換してしまうので、`Config.h` の `KRS_MAX_DEG` (±135 = 3500..11500) を超える指令は捨てる
+- 回転モードのサーボ (EEPROM で設定) には同じ `setPos` で速さと向きを送る (0 で停止)。ファームはモードを区別しない
+- 画面の `P<deg>` (整数に丸める) / `F` は「最後に送った指令」。サーボから読み返した値ではない
 - ICS ライブラリの `begin()` は内部で `Serial1.begin(baud, SERIAL_8E1)` をピン指定なしで呼ぶ。
   現在の arduino-esp32 では既に設定したピンが保持されるが、コアのバージョンを古くすると
   デフォルトピンに戻ってサーボが無反応になる可能性がある

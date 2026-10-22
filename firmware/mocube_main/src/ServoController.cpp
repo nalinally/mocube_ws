@@ -9,7 +9,7 @@ ServoController::ServoController()
 {
     for (int i = 0; i < config::KRS_SERVO_COUNT; ++i) {
         _modes[i] = Mode::Free;
-        _positions[i] = 0;
+        _positions[i] = 0.0f;
     }
 }
 
@@ -32,15 +32,16 @@ bool ServoController::isValidId(int servoId)
     return servoId >= 0 && servoId < config::KRS_SERVO_COUNT;
 }
 
-bool ServoController::setPosition(int servoId, int position)
+bool ServoController::setPosition(int servoId, float deg)
 {
-    if (!isValidId(servoId)) {
+    // degPos() は ±180 まで変換してしまうので、KRS の範囲に絞る
+    if (!isValidId(servoId) || fabsf(deg) > config::KRS_MAX_DEG) {
         return false;
     }
 
-    _krs.setPos(servoId, _krs.degPos(position));
+    _krs.setPos(servoId, IcsBaseClass::degPos(deg));
     _modes[servoId] = Mode::Position;
-    _positions[servoId] = position;
+    _positions[servoId] = deg;
     return true;
 }
 
@@ -67,7 +68,7 @@ void ServoController::handleCommand(const protocol::Packet& packet)
     const String& cmd = packet.at(1);
 
     if (cmd == "setPos" && packet.count >= 4) {
-        setPosition(packet.at(2).toInt(), packet.at(3).toInt());
+        setPosition(packet.at(2).toInt(), packet.at(3).toFloat());
     }
     else if (cmd == "setFree" && packet.count >= 3) {
         setFree(packet.at(2).toInt());

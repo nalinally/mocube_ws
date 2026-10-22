@@ -15,7 +15,7 @@
 // PC -> モジュール (ユニキャスト):
 //   ID,<id>                    REGISTER への応答
 //   ACK,<id>                   HEARTBEAT への応答
-//   KRS,setPos,<servo>,<pos>   (ServoController)
+//   KRS,setPos,<servo>,<deg>   (ServoController) deg は -135..135、小数可
 //   KRS,setFree,<servo>        (ServoController)
 //   KRS,setFreeAll             (ServoController)
 //   IR,send,<raw>              (NeighborDetector)

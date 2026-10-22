@@ -40,6 +40,9 @@ constexpr uint8_t KRS_ICS_EN = G7;
 constexpr long KRS_BAUDRATE = 115200;
 constexpr int KRS_TIMEOUT_MS = 1000;
 constexpr int KRS_SERVO_COUNT = 6;  // ICS ID 0..5
+// setPos で受け付ける角度 [deg]。±135 が ICS のポジション 3500..11500 に当たる
+// (回転モードのサーボでは回転の速さと向き。0 で停止)
+constexpr float KRS_MAX_DEG = 135.0f;
 
 
 // ------------------------------------------------------------
