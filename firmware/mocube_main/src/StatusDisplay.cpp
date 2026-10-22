@@ -15,24 +15,44 @@ constexpr uint16_t COLOR_CYAN = 0x07FF;
 
 // レイアウト (128x128)
 constexpr int SCREEN_SIZE = 128;
-constexpr int ID_Y = 11;
+constexpr int ID_Y = 2;
 constexpr int BADGE_X = 72;
 constexpr int BADGE_W = 54;
 constexpr int BADGE_H = 20;
-constexpr int WIFI_BADGE_Y = 12;
-constexpr int PC_BADGE_Y = 36;
-constexpr int IP_Y = 61;
-constexpr int SEPARATOR_Y = 79;
-constexpr int SERVO_Y = 81;
+constexpr int WIFI_BADGE_Y = 3;
+constexpr int PC_BADGE_Y = 27;
+constexpr int IP_Y = 52;
+constexpr int IR_Y = 63;
+constexpr int IR_W = 40;
+constexpr int IR_H = 16;
+constexpr int IR_PITCH = 43;
+constexpr int SEPARATOR_Y = 81;
+constexpr int SERVO_Y = 83;
 constexpr int SERVO_ROW_H = 15;
 constexpr int SERVO_COL_W = 64;
 
+// 赤外線チャンネル番号 -> 面の名前 (PC 側 protocol.FACES と同じ)
+constexpr const char* FACE_NAMES[NeighborDetector::CHANNEL_COUNT] = {"u", "r", "f"};
+
+// ビーコンの address がこの値なら、送信元はまだ ID を持っていない (ID -1 が uint8 になったもの)
+constexpr int NO_ID_ADDRESS = 255;
+
 }  // namespace
+
+bool StatusDisplay::IrState::operator==(const IrState& other) const
+{
+    return address == other.address && fresh == other.fresh;
+}
 
 bool StatusDisplay::Snapshot::operator==(const Snapshot& other) const
 {
     if (id != other.id || wifi != other.wifi || pc != other.pc || ip != other.ip) {
         return false;
+    }
+    for (int i = 0; i < NeighborDetector::CHANNEL_COUNT; ++i) {
+        if (!(ir[i] == other.ir[i])) {
+            return false;
+        }
     }
     for (int i = 0; i < config::KRS_SERVO_COUNT; ++i) {
         if (free[i] != other.free[i] || deg[i] != other.deg[i]) {
@@ -74,9 +94,13 @@ void StatusDisplay::showConnectingProgress()
     M5.Lcd.print(".");
 }
 
-void StatusDisplay::update(const PcLink& link, const ServoController& servos, unsigned long now)
+void StatusDisplay::update(
+    const PcLink& link,
+    const ServoController& servos,
+    const NeighborDetector& neighbors,
+    unsigned long now)
 {
-    const Snapshot snapshot = capture(link, servos);
+    const Snapshot snapshot = capture(link, servos, neighbors, now);
 
     if (_drawn && snapshot == _shown) {
         return;
@@ -98,13 +122,23 @@ void StatusDisplay::update(const PcLink& link, const ServoController& servos, un
     _lastDraw = now;
 }
 
-StatusDisplay::Snapshot StatusDisplay::capture(const PcLink& link, const ServoController& servos)
+StatusDisplay::Snapshot StatusDisplay::capture(
+    const PcLink& link,
+    const ServoController& servos,
+    const NeighborDetector& neighbors,
+    unsigned long now)
 {
     Snapshot s;
     s.id = link.id();
     s.wifi = link.isWiFiConnected();
     s.pc = link.isPcConnected();
     s.ip = s.wifi ? static_cast<uint32_t>(WiFi.localIP()) : 0;
+    for (int i = 0; i < NeighborDetector::CHANNEL_COUNT; ++i) {
+        const NeighborDetector::ChannelState& channel = neighbors.channel(i);
+        s.ir[i].address = channel.address;
+        s.ir[i].fresh = channel.address >= 0 &&
+                        now - channel.lastReceived <= config::IR_NEIGHBOR_FRESH_MS;
+    }
     for (int i = 0; i < config::KRS_SERVO_COUNT; ++i) {
         s.free[i] = servos.mode(i) == ServoController::Mode::Free;
         s.deg[i] = s.free[i] ? 0 : lroundf(servos.position(i));
@@ -120,11 +154,15 @@ void StatusDisplay::draw(lgfx::LovyanGFX& gfx, const Snapshot& s)
     drawBadge(gfx, WIFI_BADGE_Y, "WiFi", s.wifi);
     drawBadge(gfx, PC_BADGE_Y, "PC", s.pc);
 
-    // IP
-    gfx.setFont(&fonts::Font2);
+    // IP (小さめ。普段は見ないので)
+    gfx.setFont(&fonts::Font0);
     gfx.setTextDatum(textdatum_t::top_center);
     gfx.setTextColor(s.wifi ? COLOR_CYAN : COLOR_RED);
     gfx.drawString(s.wifi ? IPAddress(s.ip).toString().c_str() : "No WiFi", SCREEN_SIZE / 2, IP_Y);
+
+    for (int i = 0; i < NeighborDetector::CHANNEL_COUNT; ++i) {
+        drawIr(gfx, i, s.ir[i]);
+    }
 
     gfx.drawFastHLine(0, SEPARATOR_Y, SCREEN_SIZE, COLOR_DARK_GRAY);
 
@@ -135,11 +173,6 @@ void StatusDisplay::draw(lgfx::LovyanGFX& gfx, const Snapshot& s)
 
 void StatusDisplay::drawId(lgfx::LovyanGFX& gfx, int id)
 {
-    gfx.setFont(&fonts::Font0);
-    gfx.setTextDatum(textdatum_t::top_left);
-    gfx.setTextColor(COLOR_GRAY);
-    gfx.drawString("ID", 3, 2);
-
     // Font7 は 7 セグ風の数字と '-' だけを持つ (1 文字 32x48)
     char text[8];
     if (id >= 0) {
@@ -166,6 +199,42 @@ void StatusDisplay::drawBadge(lgfx::LovyanGFX& gfx, int y, const char* label, bo
     gfx.setTextDatum(textdatum_t::middle_center);
     gfx.setTextColor(ok ? COLOR_BG : COLOR_WHITE);
     gfx.drawString(label, BADGE_X + BADGE_W / 2, y + BADGE_H / 2 + 1);
+}
+
+void StatusDisplay::drawIr(lgfx::LovyanGFX& gfx, int channel, const IrState& ir)
+{
+    const int x = 1 + channel * IR_PITCH;
+
+    // 緑 = 今も受信中 / 灰 = 途切れた (最後の値を残す) / 枠だけ = 未受信
+    uint16_t textColor;
+    if (ir.fresh) {
+        gfx.fillRoundRect(x, IR_Y, IR_W, IR_H, 3, COLOR_GREEN);
+        textColor = COLOR_BG;
+    }
+    else if (ir.address >= 0) {
+        gfx.fillRoundRect(x, IR_Y, IR_W, IR_H, 3, COLOR_DARK_GRAY);
+        textColor = COLOR_GRAY;
+    }
+    else {
+        gfx.drawRoundRect(x, IR_Y, IR_W, IR_H, 3, COLOR_DARK_GRAY);
+        textColor = COLOR_DARK_GRAY;
+    }
+
+    char text[8];
+    if (ir.address < 0) {
+        snprintf(text, sizeof(text), "%s:--", FACE_NAMES[channel]);
+    }
+    else if (ir.address == NO_ID_ADDRESS) {
+        snprintf(text, sizeof(text), "%s:??", FACE_NAMES[channel]);
+    }
+    else {
+        snprintf(text, sizeof(text), "%s:%02d", FACE_NAMES[channel], ir.address);
+    }
+
+    gfx.setFont(&fonts::Font2);
+    gfx.setTextDatum(textdatum_t::middle_center);
+    gfx.setTextColor(textColor);
+    gfx.drawString(text, x + IR_W / 2, IR_Y + IR_H / 2 + 1);
 }
 
 void StatusDisplay::drawServo(lgfx::LovyanGFX& gfx, int servoId, bool free, long deg)

@@ -55,6 +55,9 @@ constexpr uint32_t IR_CARRIER_HZ = 38000;
 constexpr uint8_t IR_BEACON_COMMAND = 0x00;
 constexpr unsigned long IR_BEACON_INTERVAL_MS = 100;
 
+// この時間内にビーコンを受けた面を「今も隣にいる」として画面で強調する
+constexpr unsigned long IR_NEIGHBOR_FRESH_MS = 500;
+
 
 // ------------------------------------------------------------
 // UDP (PC 側 device_manager の port パラメータと合わせる)

@@ -4,6 +4,7 @@
 #include <M5GFX.h>
 
 #include "Config.h"
+#include "NeighborDetector.h"
 #include "PcLink.h"
 #include "ServoController.h"
 
@@ -11,12 +12,13 @@
  * AtomS3 の LCD (128x128) への状態表示。
  *
  *  ┌────────────────────────┐
- *  │ID          ┌─ WiFi ─┐  │  ID は 7 セグ風の大きな数字 (未取得なら --)
+ *  │            ┌─ WiFi ─┐  │  ID は 7 セグ風の大きな数字 (未取得なら --)
  *  │ 03         └────────┘  │  WiFi / PC は 緑 = OK / 赤 = NG のバッジ
  *  │            ┌── PC ──┐  │
  *  │            └────────┘  │
  *  │     192.168.97.12      │  IP (Wi-Fi 切断中は "No WiFi")
- *  │────────────────────────│
+ *  │ [u:05] [r:--] [f:02]   │  赤外線 ch0..2 (面 u/r/f) で最後に受けたビーコンの送信元 ID
+ *  │────────────────────────│    緑 = 今も受信中 / 灰 = 途切れた / 枠だけ = 未受信
  *  │0  FREE      1     +45  │  サーボ 0..5 に最後に送った指令
  *  │2  FREE      3    -135  │  (FREE = 脱力 / 数字 = 角度 [deg])
  *  │4  FREE      5       0  │
@@ -35,15 +37,28 @@ public:
     void showConnectingProgress();
 
     // 表示内容が変わっていれば描き直す (最短 DRAW_INTERVAL_MS 間隔)
-    void update(const PcLink& link, const ServoController& servos, unsigned long now);
+    void update(
+        const PcLink& link,
+        const ServoController& servos,
+        const NeighborDetector& neighbors,
+        unsigned long now);
 
 private:
+    // 赤外線 1 チャンネル分の表示状態
+    struct IrState {
+        int address = -1;    // -1 = 未受信
+        bool fresh = false;  // IR_NEIGHBOR_FRESH_MS 以内に受けた
+
+        bool operator==(const IrState& other) const;
+    };
+
     // 表示に使う値だけを集めたもの。前回と同じなら描き直さない
     struct Snapshot {
         int id = -1;
         bool wifi = false;
         bool pc = false;
         uint32_t ip = 0;
+        IrState ir[NeighborDetector::CHANNEL_COUNT];
         bool free[config::KRS_SERVO_COUNT] = {};
         long deg[config::KRS_SERVO_COUNT] = {};  // 表示する整数に丸めた角度
 
@@ -60,9 +75,14 @@ private:
     bool _drawn = false;
     unsigned long _lastDraw = 0;
 
-    static Snapshot capture(const PcLink& link, const ServoController& servos);
+    static Snapshot capture(
+        const PcLink& link,
+        const ServoController& servos,
+        const NeighborDetector& neighbors,
+        unsigned long now);
     void draw(lgfx::LovyanGFX& gfx, const Snapshot& s);
     void drawId(lgfx::LovyanGFX& gfx, int id);
     void drawBadge(lgfx::LovyanGFX& gfx, int y, const char* label, bool ok);
+    void drawIr(lgfx::LovyanGFX& gfx, int channel, const IrState& ir);
     void drawServo(lgfx::LovyanGFX& gfx, int servoId, bool free, long deg);
 };

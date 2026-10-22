@@ -50,6 +50,9 @@ void NeighborDetector::onMessage(
     );
 
     if (message.command == config::IR_BEACON_COMMAND) {
+        _channels[channel].address = message.address;
+        _channels[channel].lastReceived = millis();
+
         _link.broadcast(
             protocol::makeNeighbor(_link.mac(), channel, message.address));
     }

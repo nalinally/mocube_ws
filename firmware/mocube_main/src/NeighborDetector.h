@@ -19,6 +19,14 @@
  */
 class NeighborDetector {
 public:
+    static constexpr int CHANNEL_COUNT = IrNecReceiver::CHANNEL_COUNT;
+
+    // 受信チャンネル 1 つ分の、最後に受けたビーコン
+    struct ChannelState {
+        int address = -1;               // 送信元の ID (未受信なら -1, 相手が ID 未取得なら 255)
+        unsigned long lastReceived = 0;  // millis()
+    };
+
     explicit NeighborDetector(PcLink& link);
 
     void begin();
@@ -33,11 +41,14 @@ public:
     // "IR,send,<raw>"  raw は 0x 付き16進でも10進でもよい
     void handleCommand(const protocol::Packet& packet);
 
+    const ChannelState& channel(int ch) const { return _channels[ch]; }
+
 private:
     PcLink& _link;
     IrNecReceiver _receiver;
     IrNecTransmitter _transmitter;
     unsigned long _lastBeacon = 0;
+    ChannelState _channels[CHANNEL_COUNT];
 
     void onMessage(uint8_t channel, const IrNecReceiver::Message& message);
 };
