@@ -22,7 +22,6 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 ```
 mocube_ws/
 ├── README.md
-├── devices.json                 # MAC -> ID の台帳 (WS 直下で ros2 run したときに使われる)
 ├── firmware/                    # PlatformIO (COLCON_IGNORE 済み)
 │   ├── setup_pio.sh / activate.sh
 │   └── mocube_main/             # AtomS3 用ファーム
@@ -78,7 +77,6 @@ Wi-Fi の SSID / パスワードは `firmware/mocube_main/include/WifiSecrets.h`
 ## 起動
 
 ```bash
-cd mocube_ws          # devices.json はカレントディレクトリから読み書きされる
 ros2 run atom_krs_ros_udp_bridge device_manager
 ros2 topic echo /modules
 ```
@@ -108,7 +106,7 @@ ros2 topic echo /modules
 | パケット | 説明 | 処理するクラス |
 |---|---|---|
 | `ID,<id>` | REGISTER への応答。モジュールはこの ID を採用する | `PcLink` |
-| `ACK,<id>` | HEARTBEAT への応答。自分の ID と一致したときだけ PC 接続中とみなす | `PcLink` |
+| `ACK,<id>` | HEARTBEAT への応答。PC 接続中とみなし、自分の ID と違えばこの ID に切り替える | `PcLink` |
 | `KRS,setPos,<servo>,<pos>` | サーボ (ICS ID 0..5) を位置指令 (KRS の範囲 3500..11500, 中央 7500) | `ServoController` |
 | `KRS,setFree,<servo>` | サーボを脱力 | `ServoController` |
 | `IR,send,<raw>` | 32bit NEC フレームを送信 (`0x` 付き 16 進可) | `NeighborDetector` |
@@ -137,8 +135,8 @@ echo -n "KRS,setPos,0,7500" | nc -u -w1 <モジュールのIP> 5000
 |---|---|
 | モジュール画面が `Connecting...` のまま | SSID / パスワード (`WifiSecrets.h`)。2.4 GHz の AP か。`PcLink::connectWiFi` は繋がるまで永久に待つ |
 | 画面の ID が `--` のまま | PC に REGISTER が届いていない / 返信が届いていない。device_manager が動いているか、PC とモジュールが同じサブネットか、PC の FW で UDP 5000 が開いているか。WSL2 なら mirrored ネットワークモードが必要 (NAT だと LAN のブロードキャストが届かない) |
-| ID は出るが PC ランプが赤のまま | ACK の ID とモジュールの ID が不一致。PC の台帳 (`devices.json`) を消した / 別ディレクトリで起動したため、モジュールが古い ID を持ったまま PC が別 ID を払い出している。モジュールをリセットすれば直る (下記「既知の問題」) |
-| 新しいモジュールに既存モジュールと同じ ID が付いた | device_manager を別のカレントディレクトリで起動し、別の `devices.json` が使われている |
+| ID は出るが PC ランプが赤のまま | ACK が届いていない (Wi-Fi 品質、PC の FW)。ID の食い違いは ACK で自動的に直る |
+| モジュールの ID が前回と変わった | PC の台帳 (既定 `~/.ros/mocube/devices.json`) を消した / `device_file` で別の台帳を指定した。起動ログ `Loaded N devices from <パス>` を確認 |
 | `/modules` で online が true/false を行き来する | HEARTBEAT の取りこぼし (Wi-Fi 品質)。PC 側 timeout 3 秒 / 送信 1 秒なので 3 回連続で落ちると offline |
 | receivers の address がずっと -1 | 隣接モジュールのビーコンが届いていない。IR の向き・距離、相手の TX (G1)、自分の RX ピン (G8/G38/G39)。シリアルモニタに `IR RX` ログが出ているか |
 | receivers の address が 255 | 相手モジュールがまだ ID を取得していない |
@@ -149,7 +147,7 @@ echo -n "KRS,setPos,0,7500" | nc -u -w1 <モジュールのIP> 5000
 
 ## 既知の問題 / 仕様上の注意
 
-- PC の台帳を消すと、既に ID を持っているモジュールは再 REGISTER しない (ID 取得済みだと REGISTER を送らない)。
-  PC は HEARTBEAT から新しい ID で再登録して `ACK,<新ID>` を返すが、モジュールは ID 不一致で無視するので PC ランプが赤のままになる。モジュールをリセットすると直る
+- ID の正本は PC の台帳。台帳を消すと、モジュールは次の ACK で新しく払い出された ID に切り替わる
+  (前回と同じ ID になる保証はない)
 - `devices.json` は新しいモジュールを登録したときだけ保存される。中の `addr` / `last_seen` / `online` は保存時点の値で、起動時には読まれない
 - Wi-Fi のパスワードは過去の commit 履歴には残っている

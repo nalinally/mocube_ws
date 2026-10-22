@@ -3,3 +3,4 @@ install
 log
 .vscode
 firmware/venv_pio
+devices.json
