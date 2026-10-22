@@ -17,6 +17,7 @@
 //   ACK,<id>                   HEARTBEAT への応答
 //   KRS,setPos,<servo>,<pos>   (ServoController)
 //   KRS,setFree,<servo>        (ServoController)
+//   KRS,setFreeAll             (ServoController)
 //   IR,send,<raw>              (NeighborDetector)
 // ============================================================
 

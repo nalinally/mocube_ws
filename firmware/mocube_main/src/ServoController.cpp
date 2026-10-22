@@ -55,6 +55,13 @@ bool ServoController::setFree(int servoId)
     return true;
 }
 
+void ServoController::setFreeAll()
+{
+    for (int i = 0; i < config::KRS_SERVO_COUNT; ++i) {
+        setFree(i);
+    }
+}
+
 void ServoController::handleCommand(const protocol::Packet& packet)
 {
     const String& cmd = packet.at(1);
@@ -64,5 +71,8 @@ void ServoController::handleCommand(const protocol::Packet& packet)
     }
     else if (cmd == "setFree" && packet.count >= 3) {
         setFree(packet.at(2).toInt());
+    }
+    else if (cmd == "setFreeAll") {
+        setFreeAll();
     }
 }

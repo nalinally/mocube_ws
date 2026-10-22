@@ -109,6 +109,8 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 - `IcsHardSerialClass` を `Serial1` / EN=G7 / 115200 / timeout 1000 ms で持つ
 - `setPos` / `setFree` はライブラリの戻り値 (応答の角度) を見ていない。応答が無いとき
   ライブラリ内で最大 timeout (1000 ms) ブロックし得て、その間 IR デコードも UDP も止まる
+- `setFreeAll` は ICS ID 0..`KRS_SERVO_COUNT`-1 (0..5) に順に `setFree` を送る。
+  応答の無い ID があるとそれぞれ timeout まで待つので、最悪 6 秒止まる
 - 画面の `P<pos>` / `F` は「最後に送った指令」。サーボから読み返した値ではない
 - ICS ライブラリの `begin()` は内部で `Serial1.begin(baud, SERIAL_8E1)` をピン指定なしで呼ぶ。
   現在の arduino-esp32 では既に設定したピンが保持されるが、コアのバージョンを古くすると

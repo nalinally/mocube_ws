@@ -23,8 +23,9 @@ public:
 
     bool setPosition(int servoId, int position);
     bool setFree(int servoId);
+    void setFreeAll();
 
-    // "KRS,setPos,<servo>,<pos>" / "KRS,setFree,<servo>"
+    // "KRS,setPos,<servo>,<pos>" / "KRS,setFree,<servo>" / "KRS,setFreeAll"
     void handleCommand(const protocol::Packet& packet);
 
     Mode mode(int servoId) const { return _modes[servoId]; }
