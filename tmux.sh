@@ -39,7 +39,7 @@ ROS_BUILD=$(tmux split-window -t "$ROS_ECHO" -v -c "$WS" -P -F '#{pane_id}')
 for pane in "$ROS_MAIN" "$ROS_ECHO" "$ROS_BUILD"; do
     tmux send-keys -t "$pane" "source install/setup.bash && clear" Enter
 done
-tmux send-keys -t "$ROS_MAIN" "ros2 run atom_krs_ros_udp_bridge device_manager"
+tmux send-keys -t "$ROS_MAIN" "ros2 run mocube_bridge device_manager"
 tmux send-keys -t "$ROS_ECHO" "ros2 topic echo /modules"
 tmux send-keys -t "$ROS_BUILD" "colcon build && source install/setup.bash"
 

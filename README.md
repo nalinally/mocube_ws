@@ -14,8 +14,8 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | WS 全体 | この README | 構成、セットアップ、通信プロトコル、症状別の調べ方 |
 | ファームウェア全体 | [firmware/README.md](firmware/README.md) | PlatformIO の環境構築・書き込み |
 | モジュールのファーム | [firmware/mocube_main/README.md](firmware/mocube_main/README.md) | クラス構成、起動/ループの流れ、赤外線デコード、既知の落とし穴 |
-| ROS ブリッジ | [src/atom_krs_ros_udp_bridge/README.md](src/atom_krs_ros_udp_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル |
-| メッセージ定義 | [src/atom_krs_ros_udp_bridge_msg/README.md](src/atom_krs_ros_udp_bridge_msg/README.md) | `/modules` の各フィールドの意味 |
+| ROS ブリッジ | [src/mocube_bridge/README.md](src/mocube_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル |
+| メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules` の各フィールドの意味 |
 
 ## ディレクトリ構成
 
@@ -26,8 +26,8 @@ mocube_ws/
 │   ├── setup_pio.sh / activate.sh
 │   └── mocube_main/             # AtomS3 用ファーム
 └── src/                         # ROS 2 パッケージ (どちらも git submodule)
-    ├── atom_krs_ros_udp_bridge/      # device_manager ノード (Python)
-    └── atom_krs_ros_udp_bridge_msg/  # メッセージ定義
+    ├── mocube_bridge/           # device_manager ノード (Python)
+    └── mocube_msgs/             # メッセージ定義
 ```
 
 `src/` の 2 つは別リポジトリ (submodule) なので、そこを変更したら
@@ -77,7 +77,7 @@ Wi-Fi の SSID / パスワードは `firmware/mocube_main/include/WifiSecrets.h`
 ## 起動
 
 ```bash
-ros2 run atom_krs_ros_udp_bridge device_manager
+ros2 run mocube_bridge device_manager
 ros2 topic echo /modules
 ```
 
@@ -87,7 +87,7 @@ ros2 topic echo /modules
 
 1 パケット = カンマ区切りの ASCII 1 行。定義は
 ファーム側 `firmware/mocube_main/src/Protocol.h`、PC 側
-`src/atom_krs_ros_udp_bridge/atom_krs_ros_udp_bridge/protocol.py`。
+`src/mocube_bridge/mocube_bridge/protocol.py`。
 
 ### モジュール -> PC (サブネットへのブロードキャスト)
 
