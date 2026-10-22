@@ -40,6 +40,7 @@ bool ServoController::setPosition(int servoId, float deg)
     }
 
     _krs.setPos(servoId, IcsBaseClass::degPos(deg));
+    // Serial.printf("[setPosition] id:%d, pos:%d", servoId, IcsBaseClass::degPos(deg));
     _modes[servoId] = Mode::Position;
     _positions[servoId] = deg;
     return true;
