@@ -77,8 +77,8 @@ void IRAM_ATTR IrNecReceiver::handleInterrupt(uint8_t channel)
     const uint32_t duration = now - ch.lastEdgeUs;
     ch.lastEdgeUs = now;
 
-    const uint8_t nextWrite =
-        static_cast<uint8_t>((ch.writeIndex + 1) % BUFFER_SIZE);
+    const uint16_t nextWrite =
+        static_cast<uint16_t>((ch.writeIndex + 1) % BUFFER_SIZE);
 
     // Buffer full: drop this edge rather than overwriting unread data.
     if (nextWrite == ch.readIndex) {
@@ -106,7 +106,7 @@ void IrNecReceiver::update()
             if (ch.readIndex != ch.writeIndex) {
                 edge = ch.buffer[ch.readIndex];
                 ch.readIndex =
-                    static_cast<uint8_t>(
+                    static_cast<uint16_t>(
                         (ch.readIndex + 1) % BUFFER_SIZE
                     );
                 available = true;

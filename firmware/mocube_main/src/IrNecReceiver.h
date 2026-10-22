@@ -37,7 +37,10 @@ private:
         bool level;           // このエッジ直後のレベル
     };
 
-    static constexpr size_t BUFFER_SIZE = 64;
+    // 1 フレームは 68 エッジ (leader 開始 1 + leader 2 + 32bit x 2 + final 1)。
+    // 3 フレーム分以上 (約 200 ms 以上 update() が止まっても) 溜められるようにする
+    static constexpr size_t BUFFER_SIZE = 256;
+    static_assert(BUFFER_SIZE - 1 >= 3 * 68, "IR buffer must hold 3 frames");
 
     enum class DecoderState : uint8_t {
         Idle,
@@ -49,8 +52,8 @@ private:
 
     struct Channel {
         volatile uint32_t lastEdgeUs = 0;
-        volatile uint8_t writeIndex = 0;
-        volatile uint8_t readIndex = 0;
+        volatile uint16_t writeIndex = 0;
+        volatile uint16_t readIndex = 0;
         Edge buffer[BUFFER_SIZE];
 
         DecoderState state = DecoderState::Idle;
