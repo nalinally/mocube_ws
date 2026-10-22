@@ -38,7 +38,7 @@ bool ServoController::setPosition(int servoId, int position)
         return false;
     }
 
-    _krs.setPos(servoId, position);
+    _krs.setPos(servoId, _krs.degPos(position));
     _modes[servoId] = Mode::Position;
     _positions[servoId] = position;
     return true;
