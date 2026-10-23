@@ -15,7 +15,8 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | ファームウェア全体 | [firmware/README.md](firmware/README.md) | PlatformIO の環境構築・書き込み |
 | モジュールのファーム | [firmware/mocube_main/README.md](firmware/mocube_main/README.md) | クラス構成、起動/ループの流れ、赤外線デコード、既知の落とし穴 |
 | ROS ブリッジ | [src/mocube_bridge/README.md](src/mocube_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル、servo_teleop (サーボの手動操作) の使い方 |
-| メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands` の各フィールドの意味 |
+| 位置推定 | [src/mocube_estimator/README.md](src/mocube_estimator/README.md) | state_estimator ノード: 赤外線とサーボ指令からモジュールの位置を推定、座標と面・サーボの対応 |
+| メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands`, `/module_states` の各フィールドの意味 |
 
 ## ディレクトリ構成
 
@@ -25,12 +26,13 @@ mocube_ws/
 ├── firmware/                    # PlatformIO (COLCON_IGNORE 済み)
 │   ├── setup_pio.sh / activate.sh
 │   └── mocube_main/             # AtomS3 用ファーム
-└── src/                         # ROS 2 パッケージ (どちらも git submodule)
+└── src/                         # ROS 2 パッケージ (どれも git submodule)
     ├── mocube_bridge/           # device_manager ノード (Python)
+    ├── mocube_estimator/        # state_estimator ノード (位置推定, Python)
     └── mocube_msgs/             # メッセージ定義
 ```
 
-`src/` の 2 つは別リポジトリ (submodule) なので、そこを変更したら
+`src/` の各パッケージは別リポジトリ (submodule) なので、そこを変更したら
 それぞれのリポジトリで commit/push してから、WS 側で submodule の参照を commit します。
 
 ## 全体像
@@ -82,6 +84,7 @@ Wi-Fi の SSID / パスワードは `firmware/mocube_main/include/WifiSecrets.h`
 ros2 run mocube_bridge device_manager
 ros2 topic echo /modules
 ros2 run mocube_bridge servo_teleop   # キー操作でサーボを手動で動かす (別ターミナルで)
+ros2 run mocube_estimator state_estimator  # 位置推定 (/module_states と TF に出す)
 ```
 
 モジュールの電源を入れると、画面に ID が大きく表示され、WiFi / PC のバッジが緑になります。

@@ -4,3 +4,6 @@
 [submodule "src/mocube_msgs"]
 	path = src/mocube_msgs
 	url = git@github.com:nalinally/mocube_msgs.git
+[submodule "src/mocube_estimator"]
+	path = src/mocube_estimator
+	url = git@github.com:nalinally/mocube_estimator.git
