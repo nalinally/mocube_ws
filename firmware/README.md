@@ -6,6 +6,7 @@ mocube のモジュール (M5Stack AtomS3) 用ファームウェア置き場で�
 | ディレクトリ / ファイル | 内容 |
 |---|---|
 | [mocube_main/](mocube_main/README.md) | モジュール本体のファーム (PlatformIO プロジェクト) |
+| [device_check/](device_check/README.md) | デバイス確認用ファーム (サーボ / 赤外線 / LED を単体で確認) |
 | `setup_pio.sh` | PlatformIO を `firmware/venv_pio/` にインストールする (初回のみ) |
 | `activate.sh` | その venv を有効化する (`source firmware/activate.sh`) |
 | `venv_pio/` | PlatformIO 本体 (git 管理外) |
