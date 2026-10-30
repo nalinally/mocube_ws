@@ -15,15 +15,21 @@ namespace config {
 // ------------------------------------------------------------
 //
 // AtomS3 exposes G5/G6/G7/G8/G38/G39 as bottom GPIOs.
-// KRS (atoms3-ics-shield) uses G38/G5/G6, so IR must not use those pins.
+// KRS (atoms3-ics-shield) uses G5/G6/G7, so IR must not use those pins.
 //
 // IR RX (index = チャンネル番号 = PC側の面 "u" / "r" / "f"):
 //   ch0 = G8   -> "u"
-//   ch1 = G7   -> "r"
+//   ch1 = G38  -> "r"
 //   ch2 = G39  -> "f"
 //
 // IR TX:
 //   G1 (HY2.0-4P yellow/white-side GPIO)
+//
+// Indicator LED:
+//   G2 (HY2.0-4P)
+//
+// KRS ICS (TX / RX / EN):
+//   G5 / G6 / G7
 
 constexpr uint8_t IR_RX_PINS[3] = {G8, G38, G39};
 constexpr uint8_t IR_TX_PIN = G1;

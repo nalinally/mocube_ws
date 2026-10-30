@@ -31,8 +31,8 @@ mocube_main/
 
 | 用途 | ピン | 備考 |
 |---|---|---|
-| ICS TX / RX / EN | G38 / G5 / G6 | `Serial1`, 115200 bps, 8E1 (atoms3-ics-shield の配線) |
-| IR 受信 ch0 / ch1 / ch2 | G8 / G7 / G39 | PC 側の面 `u` / `r` / `f` に対応 |
+| ICS TX / RX / EN | G5 / G6 / G7 | `Serial1`, 115200 bps, 8E1 (atoms3-ics-shield の配線) |
+| IR 受信 ch0 / ch1 / ch2 | G8 / G38 / G39 | PC 側の面 `u` / `r` / `f` に対応 |
 | IR 送信 | G1 | RMT channel 0, 38 kHz, duty 33% |
 
 変更は `src/Config.h` だけで済むようになっています。
@@ -54,7 +54,7 @@ main.cpp
 1. `M5.begin()`, `Serial.begin(115200)`, 500 ms 待ち
 2. `display.begin()` (画面外バッファの確保) → `display.showConnecting()` → `pcLink.connectWiFi()` — **繋がるまでブロック** (500 ms ごとに `.` を表示)
 3. `display.update()` (ID は `--`)
-4. `servos.begin()` — `Serial1` を RX=G5 / TX=G38 で開いてから ICS ライブラリを初期化
+4. `servos.begin()` — `Serial1` を RX=G6 / TX=G5 で開いてから ICS ライブラリを初期化
 5. `neighbors.begin()` — IR 受信の割り込み登録、RMT 初期化
 6. `KRS` / `IR` コマンドのハンドラ登録
 7. `pcLink.begin(5000)` — UDP を開き、最初の `REGISTER` を送る
@@ -103,7 +103,7 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 
 ### ServoController
 
-- `IcsHardSerialClass` を `Serial1` / EN=G6 / 115200 / timeout 1000 ms で持つ
+- `IcsHardSerialClass` を `Serial1` / EN=G7 / 115200 / timeout 1000 ms で持つ
 - `setPos` / `setFree` はライブラリの戻り値 (応答の角度) を見ていない。応答が無いとき
   ライブラリ内で最大 timeout (1000 ms) ブロックし得て、その間 IR デコードも UDP も止まる
 - `setFreeAll` は ICS ID 0..`KRS_SERVO_COUNT`-1 (0..5) に順に `setFree` を送る。
