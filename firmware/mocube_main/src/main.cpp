@@ -8,6 +8,7 @@
 //   ServoController  KRS サーボ (ICS)
 //   NeighborDetector 赤外線ビーコンによる隣接モジュール検出
 //   StatusDisplay    LCD 表示
+//   IdIndicator      インジケータ LED の点滅で ID を表示
 //
 // 新しい機能を足すときの基本形:
 //   1. begin() / update(now) / handleCommand(packet) を持つクラスを作る
@@ -20,6 +21,7 @@
 #include <M5AtomS3.h>
 
 #include "Config.h"
+#include "IdIndicator.h"
 #include "NeighborDetector.h"
 #include "PcLink.h"
 #include "Protocol.h"
@@ -37,6 +39,7 @@ PcLink pcLink;
 ServoController servos;
 NeighborDetector neighbors(pcLink);
 StatusDisplay display;
+IdIndicator indicator;
 
 
 void setup()
@@ -49,6 +52,7 @@ void setup()
 
     delay(500);
 
+    indicator.begin();
     display.begin();
     display.showConnecting();
     pcLink.connectWiFi(WIFI_SSID, WIFI_PASSWORD, [] {
@@ -82,6 +86,7 @@ void loop()
     if (!pcLink.isWiFiConnected()) {
 
         pcLink.handleWiFiLost();
+        indicator.stop();  // 下の delay で点滅が乱れて回数を数え違えるので消しておく
         display.update(pcLink, servos, neighbors, millis());
 
         delay(config::WIFI_RETRY_DELAY_MS);
@@ -92,6 +97,7 @@ void loop()
 
     pcLink.update(now);
     display.update(pcLink, servos, neighbors, now);
+    indicator.update(pcLink.id(), now);
 
     neighbors.updateBeacon(now);
 

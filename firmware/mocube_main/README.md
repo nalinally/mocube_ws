@@ -20,6 +20,7 @@ mocube_main/
 │   ├── ServoController.h/.cpp  # KRS サーボ (ICS)
 │   ├── NeighborDetector.h/.cpp # 赤外線ビーコンによる隣接検出
 │   ├── StatusDisplay.h/.cpp    # LCD 表示 (ID / WiFi / PC / IP / サーボ)
+│   ├── IdIndicator.h/.cpp      # インジケータ LED の点滅で ID を表示
 │   ├── NecFormat.h             # NEC フレームの定数・エンコード・検証
 │   ├── IrNecReceiver.h/.cpp    # 3ch 赤外線受信 (ISR + デコード)
 │   └── IrNecTransmitter.h/.cpp # 赤外線送信 (RMT)
@@ -34,6 +35,7 @@ mocube_main/
 | ICS TX / RX / EN | G5 / G6 / G7 | `Serial1`, 115200 bps, 8E1 (atoms3-ics-shield の配線) |
 | IR 受信 ch0 / ch1 / ch2 | G8 / G38 / G39 | PC 側の面 `u` / `r` / `f` に対応 |
 | IR 送信 | G1 | RMT channel 0, 38 kHz, duty 33% |
+| インジケータ LED | G2 | HIGH で点灯。ID + 1 回点滅して ID を知らせる |
 
 変更は `src/Config.h` だけで済むようになっています。
 
@@ -46,13 +48,14 @@ main.cpp
  ├─ NeighborDetector neighbors … "IR,..." を処理。pcLink を参照して NEIGHBOR を送る / 自分の ID を読む
  │    ├─ IrNecReceiver   (ISR でエッジ記録 → update() でデコード → コールバック)
  │    └─ IrNecTransmitter (RMT でフレーム送信, ノンブロッキング)
- └─ StatusDisplay display      … pcLink と servos の状態を読んで描画するだけ
+ ├─ StatusDisplay display      … pcLink と servos の状態を読んで描画するだけ
+ └─ IdIndicator indicator      … pcLink.id() を受け取って LED を点滅させるだけ
 ```
 
 ## 起動シーケンス (`setup()`)
 
 1. `M5.begin()`, `Serial.begin(115200)`, 500 ms 待ち
-2. `display.begin()` (画面外バッファの確保) → `display.showConnecting()` → `pcLink.connectWiFi()` — **繋がるまでブロック** (500 ms ごとに `.` を表示)
+2. `indicator.begin()` (LED 消灯) → `display.begin()` (画面外バッファの確保) → `display.showConnecting()` → `pcLink.connectWiFi()` — **繋がるまでブロック** (500 ms ごとに `.` を表示)
 3. `display.update()` (ID は `--`)
 4. `servos.begin()` — `Serial1` を RX=G6 / TX=G5 で開いてから ICS ライブラリを初期化
 5. `neighbors.begin()` — IR 受信の割り込み登録、RMT 初期化
@@ -65,9 +68,10 @@ main.cpp
 M5.update()
 neighbors.updateReceiver()        ← 毎回。ビーコンを受けたらここから NEIGHBOR を送る
 if Wi-Fi 切断:
-    PC 接続を false にして display.update()、1 秒 delay して return   ← この間ビーコン送信は止まる
+    PC 接続を false にし、LED を消して display.update()、1 秒 delay して return   ← この間ビーコン送信と ID の点滅は止まる
 pcLink.update(now)                ← UDP 1 パケット処理 / REGISTER / HEARTBEAT / ACK タイムアウト
 display.update(pcLink, servos, now) ← 表示内容が変わっていたら描き直す (最短 100 ms 間隔)
+indicator.update(pcLink.id(), now) ← ID + 1 回点滅 → 消灯、を繰り返す
 neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 ```
 
@@ -77,6 +81,8 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
 | HEARTBEAT | 1000 ms | 常に |
 | PC タイムアウト | 3000 ms | 最後の `ID` / `ACK` からの経過 |
 | IR ビーコン | 100 ms | address = 自分の ID (未取得なら 0xFF), command = 0x00 |
+| ID 点滅 1 回 | 250 ms | 前半 125 ms ON / 後半 125 ms OFF。ID + 1 回 (ID 0 なら 1 回) |
+| ID 点滅の区切り | 1000 ms | 点滅のあと消灯して待つ時間 |
 | Wi-Fi 切断時の待ち | 1000 ms | |
 
 ## 各クラスの詳細
@@ -125,6 +131,14 @@ neighbors.updateBeacon(now)       ← 100 ms ごとに自分の ID を IR 送信
   PC 側と同じく、古い値も消さない
 - 受信したフレームはすべてシリアルに `IR RX<ch+1>: ADDR=.. CMD=.. DATA=..` と出る (ch は 1 始まり表示)
 - `IR,send,<raw>` で任意の 32bit を送れる (`strtoul(..., 0)` なので `0x..` も 10 進も可)
+
+### IdIndicator
+
+- ID + 1 回 (1 回 250 ms, 前半 ON / 後半 OFF) 点滅したあと 1000 ms 消灯、を繰り返す。例: ID 2 なら 3 回点滅
+- ID 未取得 (-1) の間は消灯のまま。ID が変わったら (ID 取得・ACK での付け替え) その時点から数え直す
+- 時刻だけで ON/OFF を決めるので、loop が止まるとその間 LED も止まる。
+  サーボの応答待ち (最大 1 秒、`setFreeAll` は最悪 6 秒) の間は点滅が乱れる
+- Wi-Fi 切断中は loop が 1 秒 delay して点滅が数えられなくなるので消灯する
 
 ### IrNecReceiver (受信)
 
