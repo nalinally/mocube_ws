@@ -25,12 +25,13 @@ namespace config {
 // IR TX:
 //   G1 (HY2.0-4P yellow/white-side GPIO)
 
-constexpr uint8_t IR_RX_PINS[3] = {G8, G7, G39};
+constexpr uint8_t IR_RX_PINS[3] = {G8, G38, G39};
 constexpr uint8_t IR_TX_PIN = G1;
+constexpr uint8_t INDICATOR_PIN = G2;
 
-constexpr uint8_t KRS_ICS_TX = G38;
-constexpr uint8_t KRS_ICS_RX = G5;
-constexpr uint8_t KRS_ICS_EN = G6;
+constexpr uint8_t KRS_ICS_TX = G5;
+constexpr uint8_t KRS_ICS_RX = G6;
+constexpr uint8_t KRS_ICS_EN = G7;
 
 
 // ------------------------------------------------------------
