@@ -27,6 +27,9 @@ mocube_ws/
 ├── firmware/                    # PlatformIO (COLCON_IGNORE 済み)
 │   ├── setup_pio.sh / activate.sh
 │   └── mocube_main/             # AtomS3 用ファーム
+├── external/                    # 外部ツール (COLCON_IGNORE 済み)
+│   ├── build_pathfinder.sh
+│   └── modular-robotics/        # Pathfinder (git submodule)
 └── src/                         # ROS 2 パッケージ (どれも git submodule)
     ├── mocube_bridge/           # device_manager ノード (Python)
     ├── mocube_estimator/        # state_estimator ノード (位置推定, Python)
@@ -75,6 +78,7 @@ cd mocube_ws
 git submodule update --init --recursive
 colcon build
 source install/setup.bash
+./external/build_pathfinder.sh   # 変形計画を作るときだけ必要
 ```
 
 ファームウェアの環境構築と書き込みは [firmware/README.md](firmware/README.md)。
