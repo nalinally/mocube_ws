@@ -7,3 +7,6 @@
 [submodule "src/mocube_estimator"]
 	path = src/mocube_estimator
 	url = git@github.com:nalinally/mocube_estimator.git
+[submodule "src/mocube_planner"]
+	path = src/mocube_planner
+	url = git@github.com:nalinally/mocube_planner.git

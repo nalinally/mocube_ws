@@ -16,6 +16,7 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | モジュールのファーム | [firmware/mocube_main/README.md](firmware/mocube_main/README.md) | クラス構成、起動/ループの流れ、赤外線デコード、既知の落とし穴 |
 | ROS ブリッジ | [src/mocube_bridge/README.md](src/mocube_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル、servo_teleop (サーボの手動操作) の使い方 |
 | 位置推定 | [src/mocube_estimator/README.md](src/mocube_estimator/README.md) | state_estimator ノード: 赤外線とサーボ指令からモジュールの位置を推定、座標と面・サーボの対応 |
+| 変形計画 | [src/mocube_planner/README.md](src/mocube_planner/README.md) | 変形の計画づくりと実行 (plan, plan_executor)、実機なしでの試し方 |
 | メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands`, `/module_states` の各フィールドの意味 |
 
 ## ディレクトリ構成
@@ -29,6 +30,7 @@ mocube_ws/
 └── src/                         # ROS 2 パッケージ (どれも git submodule)
     ├── mocube_bridge/           # device_manager ノード (Python)
     ├── mocube_estimator/        # state_estimator ノード (位置推定, Python)
+    ├── mocube_planner/          # 変形計画と plan_executor ノード (Python)
     └── mocube_msgs/             # メッセージ定義
 ```
 
@@ -85,6 +87,7 @@ ros2 run mocube_bridge device_manager
 ros2 topic echo /modules
 ros2 run mocube_bridge servo_teleop   # キー操作でサーボを手動で動かす (別ターミナルで)
 ros2 run mocube_estimator state_estimator  # 位置推定 (/module_states と TF に出す)
+ros2 run mocube_planner plan_executor --ros-args -p plan_file:=plan.json  # 変形の実行 (すぐにサーボが回る)
 ```
 
 モジュールの電源を入れると、画面に ID が大きく表示され、WiFi / PC のバッジが緑になります。
