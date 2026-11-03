@@ -19,6 +19,17 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | 変形計画 | [src/mocube_planner/README.md](src/mocube_planner/README.md) | 変形の計画づくりと実行 (plan, plan_executor)、実機なしでの試し方 |
 | メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands`, `/module_states` の各フィールドの意味 |
 
+## WSL2 (mirrored) での DDS の設定
+
+mirrored モードでは `127.0.0.1` 宛ての UDP のうち 1473 バイト以上が黙って失われ、
+後から起動したノードがつながらなくなります。ROS を使うシェルで次の設定が必要です (`~/.bashrc` に書いておくと確実です)。
+
+```bash
+export FASTRTPS_DEFAULT_PROFILES_FILE=$HOME/git/mocube_ws/config/fastdds_wsl_mirrored.xml
+```
+
+`ros2` コマンドも含めて、全プロセスで同じ設定にします。設定を変えたら `ros2 daemon stop` で daemon を止めてください。
+
 ## ディレクトリ構成
 
 ```
@@ -30,6 +41,7 @@ mocube_ws/
 ├── external/                    # 外部ツール (COLCON_IGNORE 済み)
 │   ├── build_pathfinder.sh
 │   └── modular-robotics/        # Pathfinder (git submodule)
+├── config/fastdds_wsl_mirrored.xml  # Fast DDS の設定 (下の「WSL2 での DDS の設定」を参照)
 └── src/                         # ROS 2 パッケージ (どれも git submodule)
     ├── mocube_bridge/           # device_manager ノード (Python)
     ├── mocube_estimator/        # state_estimator ノード (位置推定, Python)

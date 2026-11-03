@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WSL2 の mirrored モードでは、127.0.0.1 宛ての UDP のうち IP フラグメントが必要な大きさ
+  (1473 バイト以上) が黙って失われる。Fast DDS は同じ PC の相手へ 127.0.0.1 で送るので、
+  大きな発見情報 (EDP) が届かず、後から起動したノードがつながらない。
+  メッセージの上限を下げて、フラグメントを起こさないようにする。
+
+  あわせてリースを短くする。既定の約 20 秒だと、異常終了したノードが消えたと分かる前に
+  1 手 (約 5.7 秒) が終わってしまい、move_server と plan_executor が相手の消滅に気づけない。
+
+  Jazzy の Fast DDS 2.x が読む環境変数は FASTRTPS_DEFAULT_PROFILES_FILE。
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>udp</transport_id>
+      <type>UDPv4</type>
+      <maxMessageSize>1400</maxMessageSize>
+    </transport_descriptor>
+  </transport_descriptors>
+  <participant profile_name="mocube_default" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <transport_id>udp</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+      <builtin>
+        <discovery_config>
+          <leaseDuration>
+            <sec>2</sec>
+            <nanosec>0</nanosec>
+          </leaseDuration>
+          <leaseAnnouncement>
+            <sec>0</sec>
+            <nanosec>500000000</nanosec>
+          </leaseAnnouncement>
+        </discovery_config>
+      </builtin>
+    </rtps>
+  </participant>
+</profiles>
