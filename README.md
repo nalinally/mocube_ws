@@ -17,6 +17,7 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | ROS ブリッジ | [src/mocube_bridge/README.md](src/mocube_bridge/README.md) | device_manager ノードの内部、パラメータ、台帳ファイル、servo_teleop (サーボの手動操作) の使い方 |
 | 位置推定 | [src/mocube_estimator/README.md](src/mocube_estimator/README.md) | state_estimator ノード: 赤外線とサーボ指令からモジュールの位置を推定、座標と面・サーボの対応 |
 | 変形計画 | [src/mocube_planner/README.md](src/mocube_planner/README.md) | 変形の計画づくりと実行 (plan, plan_executor)、実機なしでの試し方 |
+| 1 手の実行 | [src/mocube_executor/README.md](src/mocube_executor/README.md) | move_server ノード: 1 手を実行する action サーバ、止め方の決まり、異常時の動き |
 | メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands`, `/module_states` の各フィールドの意味 |
 
 ## WSL2 (mirrored) での DDS の設定
@@ -42,10 +43,11 @@ mocube_ws/
 │   ├── build_pathfinder.sh
 │   └── modular-robotics/        # Pathfinder (git submodule)
 ├── config/fastdds_wsl_mirrored.xml  # Fast DDS の設定 (下の「WSL2 での DDS の設定」を参照)
-└── src/                         # ROS 2 パッケージ (どれも git submodule)
+└── src/                         # ROS 2 パッケージ (mocube_executor 以外は git submodule)
     ├── mocube_bridge/           # device_manager ノード (Python)
     ├── mocube_estimator/        # state_estimator ノード (位置推定, Python)
     ├── mocube_planner/          # 変形計画と plan_executor ノード (Python)
+    ├── mocube_executor/         # 1 手を実行する move_server ノード (Python)
     └── mocube_msgs/             # メッセージ定義
 ```
 
