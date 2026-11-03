@@ -50,6 +50,8 @@ constexpr int KRS_SERVO_COUNT = 6;  // ICS ID 0..5
 // setPos で受け付ける角度 [deg]。±135 が ICS のポジション 3500..11500 に当たる
 // (回転モードのサーボでは回転の速さと向き。0 で停止)
 constexpr float KRS_MAX_DEG = 135.0f;
+// setPosWd の指令がこの時間更新されなければ、そのサーボを止める (PC や Wi-Fi が落ちたときの保護)
+constexpr unsigned long KRS_WATCHDOG_MS = 1000;
 
 
 // ------------------------------------------------------------

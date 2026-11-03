@@ -83,6 +83,9 @@ void loop()
     // Wi-Fi 切断中も止めない (止めるとリングバッファが溢れる)。
     neighbors.updateReceiver();
 
+    // PC とつながらないときこそ必要なので、Wi-Fi の判定より先に呼ぶ
+    servos.update(millis());
+
     if (!pcLink.isWiFiConnected()) {
 
         pcLink.handleWiFiLost();

@@ -10,6 +10,8 @@ ServoController::ServoController()
     for (int i = 0; i < config::KRS_SERVO_COUNT; ++i) {
         _modes[i] = Mode::Free;
         _positions[i] = 0.0f;
+        _watched[i] = false;
+        _lastUpdate[i] = 0;
     }
 }
 
@@ -27,6 +29,15 @@ void ServoController::begin()
     _krs.begin();
 }
 
+void ServoController::update(unsigned long now)
+{
+    for (int i = 0; i < config::KRS_SERVO_COUNT; ++i) {
+        if (_watched[i] && now - _lastUpdate[i] >= config::KRS_WATCHDOG_MS) {
+            setPosition(i, 0.0f);
+        }
+    }
+}
+
 bool ServoController::isValidId(int servoId)
 {
     return servoId >= 0 && servoId < config::KRS_SERVO_COUNT;
@@ -39,10 +50,21 @@ bool ServoController::setPosition(int servoId, float deg)
         return false;
     }
 
+    _watched[servoId] = false;
     _krs.setPos(servoId, IcsBaseClass::degPos(deg));
     // Serial.printf("[setPosition] id:%d, pos:%d", servoId, IcsBaseClass::degPos(deg));
     _modes[servoId] = Mode::Position;
     _positions[servoId] = deg;
+    return true;
+}
+
+bool ServoController::setPositionWithWatchdog(int servoId, float deg, unsigned long now)
+{
+    if (!setPosition(servoId, deg)) {
+        return false;
+    }
+    _watched[servoId] = deg != 0.0f;
+    _lastUpdate[servoId] = now;
     return true;
 }
 
@@ -52,6 +74,7 @@ bool ServoController::setFree(int servoId)
         return false;
     }
 
+    _watched[servoId] = false;
     _krs.setFree(servoId);
     _modes[servoId] = Mode::Free;
     return true;
@@ -70,6 +93,9 @@ void ServoController::handleCommand(const protocol::Packet& packet)
 
     if (cmd == "setPos" && packet.count >= 4) {
         setPosition(packet.at(2).toInt(), packet.at(3).toFloat());
+    }
+    else if (cmd == "setPosWd" && packet.count >= 4) {
+        setPositionWithWatchdog(packet.at(2).toInt(), packet.at(3).toFloat(), millis());
     }
     else if (cmd == "setFree" && packet.count >= 3) {
         setFree(packet.at(2).toInt());

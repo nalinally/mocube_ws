@@ -134,6 +134,7 @@ ros2 run mocube_planner plan_executor --ros-args -p plan_file:=plan.json  # 変�
 | `ID,<id>` | REGISTER への応答。モジュールはこの ID を採用する | `PcLink` |
 | `ACK,<id>` | HEARTBEAT への応答。PC 接続中とみなし、自分の ID と違えばこの ID に切り替える | `PcLink` |
 | `KRS,setPos,<servo>,<deg>` | サーボ (ICS ID 0..5) を角度指令 (-135..135 [deg], 小数可, 0 が中央)。ファームが `degPos()` で ICS の値 (3500..11500) に変換する。回転モードのサーボでは速さと向き (0 で停止) | `ServoController` |
+| `KRS,setPosWd,<servo>,<deg>` | `setPos` と同じだが、1 秒更新が無ければファームが 0 にする (0 を送ると監視をやめる)。送り続ける側 (`move_server`) が使う | `ServoController` |
 | `KRS,setFree,<servo>` | サーボを脱力 | `ServoController` |
 | `KRS,setFreeAll` | 全サーボ (ICS ID 0..5) を脱力 | `ServoController` |
 | `IR,send,<raw>` | 32bit NEC フレームを送信 (`0x` 付き 16 進可) | `NeighborDetector` |
