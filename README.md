@@ -18,6 +18,7 @@ Wi-Fi (UDP) で PC 上の ROS 2 ノードとつながります。
 | 位置推定 | [src/mocube_estimator/README.md](src/mocube_estimator/README.md) | state_estimator ノード: 赤外線とサーボ指令からモジュールの位置を推定、座標と面・サーボの対応 |
 | 変形計画 | [src/mocube_planner/README.md](src/mocube_planner/README.md) | 変形の計画づくりと実行 (plan, plan_executor)、実機なしでの試し方 |
 | 1 手の実行 | [src/mocube_executor/README.md](src/mocube_executor/README.md) | move_server ノード: 1 手を実行する action サーバ、止め方の決まり、異常時の動き |
+| シミュレータ | [src/mocube_sim/README.md](src/mocube_sim/README.md) | module_sim ノード: device_manager と実機の代わりに、サーボ指令から本当の位置を動かして `/modules` を出す |
 | メッセージ定義 | [src/mocube_msgs/README.md](src/mocube_msgs/README.md) | `/modules`, `/servo_commands`, `/module_states` の各フィールドの意味 |
 
 ## WSL2 (mirrored) での DDS の設定
@@ -43,11 +44,12 @@ mocube_ws/
 │   ├── build_pathfinder.sh
 │   └── modular-robotics/        # Pathfinder (git submodule)
 ├── config/fastdds_wsl_mirrored.xml  # Fast DDS の設定 (下の「WSL2 での DDS の設定」を参照)
-└── src/                         # ROS 2 パッケージ (mocube_executor 以外は git submodule)
+└── src/                         # ROS 2 パッケージ (mocube_sim 以外は git submodule)
     ├── mocube_bridge/           # device_manager ノード (Python)
     ├── mocube_estimator/        # state_estimator ノード (位置推定, Python)
     ├── mocube_planner/          # 変形計画と plan_executor ノード (Python)
     ├── mocube_executor/         # 1 手を実行する move_server ノード (Python)
+    ├── mocube_sim/              # device_manager と実機の代わりのシミュレータ module_sim (Python)
     └── mocube_msgs/             # メッセージ定義
 ```
 
@@ -107,6 +109,9 @@ ros2 run mocube_bridge servo_teleop   # キー操作でサーボを手動で動�
 ros2 run mocube_estimator state_estimator  # 位置推定 (/module_states と TF に出す)
 ros2 run mocube_planner plan_executor --ros-args -p plan_file:=plan.json  # 変形の実行 (すぐにサーボが回る)
 ```
+
+実機なしで試すときは `device_manager` の代わりに `ros2 run mocube_sim module_sim --ros-args -p layout_file:=plan.json` を使います
+([src/mocube_sim/README.md](src/mocube_sim/README.md))。
 
 モジュールの電源を入れると、画面に ID が大きく表示され、WiFi / PC のバッジが緑になります。
 `servo_teleop` の操作方法は [src/mocube_bridge/README.md](src/mocube_bridge/README.md#servo_teleop-サーボの手動操作)。
