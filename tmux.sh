@@ -7,6 +7,10 @@
 # window:
 #   claude : Claude Code
 #   ros    : 左上 = device_manager / 左下 = servo_teleop / 右上 = /modules の echo / 右下 = colcon build
+#   sim    : 実機なしのシミュレータ (ROS_DOMAIN_ID=77 で実機と分ける)
+#            左 = module_sim・state_estimator・move_server・RViz の launch / 右上 = plan_executor /
+#            右下 = 本当の位置 (/sim/true_states) の echo。計画は $PLAN (既定は l_wall_to_floor)。
+#            launch を起動して RViz が開いてから、右上で計画を実行する。やり直すときは launch から起動し直す
 #   pio    : 左上 = 書き込み / 左下 = シリアルモニタ / 右 = ポート確認 (WSL なら usbipd のメモ)
 #            書き込み中はポートを掴めないので、モニタは Ctrl+C で止めてから書き込む
 #   memo   : 落書き用
@@ -19,6 +23,9 @@ SESSION=mocube
 PORT=${1:-/dev/ttyACM0}
 WS=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 FW=$WS/firmware/mocube_main
+# sim window で使う計画と ROS_DOMAIN_ID
+SIM_PLAN=$WS/src/mocube_planner/results/l_wall_to_floor_commands.json
+SIM_DOMAIN=77
 
 if tmux has-session -t "$SESSION" 2>/dev/null; then
     if [ -n "${TMUX:-}" ]; then
@@ -44,6 +51,20 @@ tmux send-keys -t "$ROS_MAIN" "ros2 run mocube_bridge device_manager"
 tmux send-keys -t "$ROS_TELEOP" "ros2 run mocube_bridge servo_teleop"
 tmux send-keys -t "$ROS_ECHO" "ros2 topic echo /modules"
 tmux send-keys -t "$ROS_BUILD" "colcon build && source install/setup.bash"
+
+# ---- sim ----
+SIM_MAIN=$(tmux new-window -t "$SESSION" -n sim -c "$WS" -P -F '#{pane_id}')
+SIM_PLAN_PANE=$(tmux split-window -t "$SIM_MAIN" -h -c "$WS" -P -F '#{pane_id}')
+SIM_ECHO=$(tmux split-window -t "$SIM_PLAN_PANE" -v -c "$WS" -P -F '#{pane_id}')
+for pane in "$SIM_MAIN" "$SIM_PLAN_PANE" "$SIM_ECHO"; do
+    tmux send-keys -t "$pane" \
+        "source install/setup.bash && export ROS_DOMAIN_ID=$SIM_DOMAIN PLAN=$SIM_PLAN && clear" Enter
+done
+tmux send-keys -t "$SIM_MAIN" \
+    'ros2 launch mocube_sim demo.launch.py plan_file:=$PLAN ir_range:=0.02 run_plan:=false'
+tmux send-keys -t "$SIM_PLAN_PANE" \
+    'ros2 run mocube_planner plan_executor --ros-args -p plan_file:=$PLAN'
+tmux send-keys -t "$SIM_ECHO" 'ros2 topic echo /sim/true_states'
 
 # ---- pio ----
 PIO_MAIN=$(tmux new-window -t "$SESSION" -n pio -c "$FW" -P -F '#{pane_id}')
