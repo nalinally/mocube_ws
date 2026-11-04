@@ -46,6 +46,36 @@ ros2 run mocube_planner plan_executor --ros-args -p plan_file:=plan.json
 ros2 run mocube_sim module_sim --ros-args -p layout_file:=plan.json -p speed_gain_mm:=0.25
 ```
 
+### RViz で見る (まとめて起動)
+
+`launch/demo.launch.py` で、`module_sim`・`state_estimator`・`move_server`・RViz を起動し、
+`plan_delay` 秒後に `plan_executor` が計画を実行します。`plan_file` は絶対パスで渡します。
+
+```bash
+ros2 launch mocube_sim demo.launch.py plan_file:=$PWD/plan.json ir_range:=0.02
+```
+
+| 引数 | 既定値 | 内容 |
+|---|---|---|
+| `plan_file` | (必須) | 計画の JSON。初期配置にも使う |
+| `ir_range` | 0.1 | `module_sim` の `ir_range`。0.1 では `l_wall_to_floor` が 3 手目で失敗する (下の「試した結果」) |
+| `sim_speed_gain_mm` | 0.2 | `module_sim` の `speed_gain_mm` (推定は 0.2 のまま) |
+| `run_plan` | true | false なら `plan_executor` を起動しない (別のターミナルで手で起動する) |
+| `plan_delay` | 5.0 | `plan_executor` を起動するまでの時間 [s] |
+| `rviz` | true | RViz を起動するか |
+
+RViz の表示 (`rviz/mocube_sim.rviz`):
+
+| 表示 | 意味 |
+|---|---|
+| 灰色の立方体 | 本当の位置 (止まっている)。濃い灰色が ID0 |
+| 橙の立方体 | 本当の位置 (動いている) |
+| 白い数字 | ID |
+| 水色の枠線 | 推定の位置 (`/module_states`)。立方体からずれていれば推定がずれている |
+| TF (既定で非表示) | 推定の `mocube_<ID>` |
+
+マーカーは `/sim/markers` (`visualization_msgs/MarkerArray`) に `true_state_period` ごとに出します。
+
 ### 本当の位置を見る・動かす
 
 ```bash
@@ -92,7 +122,8 @@ ros2 service call /sim/set_grid_positions mocube_msgs/srv/SetGridPositions \
 | `timeout` | 3.0 | HEARTBEAT が途絶えてから offline にするまで [s] (`device_manager` の `timeout`) |
 | `watchdog` | 1.0 | `setPosWd` のウォッチドッグ [s] (ファームの `KRS_WATCHDOG_MS`) |
 | `publish_period` | 0.01 | 位置を進めて `/modules` を出す周期 [s] |
-| `true_state_period` | 0.05 | `/sim/true_states` を出す周期 [s] |
+| `true_state_period` | 0.05 | `/sim/true_states` と `/sim/markers` を出す周期 [s] |
+| `world_frame` | `world` | マーカーのフレーム (`state_estimator` の `world_frame` と同じ) |
 
 ## トピック・サービス
 
@@ -102,6 +133,8 @@ ros2 service call /sim/set_grid_positions mocube_msgs/srv/SetGridPositions \
 | `/modules` | `mocube_msgs/Modules` | 出力 |
 | `/sim/true_states` | `mocube_msgs/ModuleStates` | 出力 (本当の位置。`grid_*` は最も近い格子点、`localized` は常に true) |
 | `/sim/set_grid_positions` | `mocube_msgs/srv/SetGridPositions` | サービス (本当の位置を置き直す) |
+| `/sim/markers` | `visualization_msgs/MarkerArray` | 出力 (RViz 用) |
+| `/module_states` | `mocube_msgs/ModuleStates` | 購読 (表示の枠線にだけ使う) |
 
 ## 構成
 
@@ -109,7 +142,10 @@ ros2 service call /sim/set_grid_positions mocube_msgs/srv/SetGridPositions \
 |---|---|
 | `firmware.py` | ファームの `ServoController` の写し (パケットの解釈とウォッチドッグ) |
 | `world.py` | 本体 (`World`)。本当の位置、赤外線、台帳。ROS に依存しないので単体テストできる |
+| `markers.py` | RViz 用のマーカー |
 | `module_sim.py` | ROS ノード |
+| `launch/demo.launch.py` | 全体を起動して RViz で見る |
+| `rviz/mocube_sim.rviz` | RViz の設定 |
 
 ```bash
 colcon test --packages-select mocube_sim && colcon test-result --verbose

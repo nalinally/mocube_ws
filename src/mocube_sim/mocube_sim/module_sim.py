@@ -7,6 +7,7 @@ device_manager と同じトピックを使う。
 これに加えて、デバッグ用に本当の位置を出す。
   出力: /sim/true_states (ModuleStates)。grid_* は最も近い格子点
   サービス: /sim/set_grid_positions (SetGridPositions)。モジュールを格子点へ置き直す
+  出力: /sim/markers (MarkerArray)。RViz 用。本当の位置の立方体と、推定 (/module_states) の枠線
 
 指令の検査とパケットへの変換は mocube_bridge の device_manager と同じ関数を使い、
 パケットの解釈はファーム (ServoController) の写しで行う。
@@ -19,10 +20,12 @@ from mocube_bridge.device_manager import to_servo_packet
 from mocube_bridge.protocol import ProtocolError
 from mocube_msgs.msg import IrReceiver, Module, Modules, ModuleState, ModuleStates, ServoCommands
 from mocube_msgs.srv import SetGridPositions
+from mocube_sim.markers import estimate_markers, true_markers
 from mocube_sim.world import load_layout, World
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from visualization_msgs.msg import MarkerArray
 
 
 class ModuleSim(Node):
@@ -41,6 +44,8 @@ class ModuleSim(Node):
         watchdog = self.declare_parameter('watchdog', 1.0).value
         publish_period = self.declare_parameter('publish_period', 0.01).value
         true_state_period = self.declare_parameter('true_state_period', 0.05).value
+        self._frame_id = self.declare_parameter('world_frame', 'world').value
+        self._edge_length = edge_length
 
         if not layout_file:
             raise ValueError('layout_file パラメータで初期配置を指定してください')
@@ -58,6 +63,11 @@ class ModuleSim(Node):
             ServoCommands, 'servo_commands', self._on_servo_commands, 10)
         self._publisher = self.create_publisher(Modules, 'modules', 10)
         self._true_publisher = self.create_publisher(ModuleStates, 'sim/true_states', 10)
+        self._marker_publisher = self.create_publisher(MarkerArray, 'sim/markers', 10)
+        # 推定の位置は表示にだけ使う (シミュレーションには使わない)
+        self._estimates = {}
+        self._states_subscription = self.create_subscription(
+            ModuleStates, 'module_states', self._on_module_states, 10)
         self._service = self.create_service(
             SetGridPositions, 'sim/set_grid_positions', self._on_set_grid_positions)
         self._timer = self.create_timer(publish_period, self._on_timer)
@@ -88,6 +98,19 @@ class ModuleSim(Node):
                 position=Point(x=float(position[0]), y=float(position[1]), z=float(position[2])),
                 grid_x=grid[0], grid_y=grid[1], grid_z=grid[2], grid_t=msg.t))
         self._true_publisher.publish(msg)
+
+        stamp = self.get_clock().now().to_msg()
+        markers = MarkerArray()
+        markers.markers = (
+            true_markers(self._world.positions(), self._world.velocities(),
+                         self._edge_length, self._frame_id, stamp)
+            + estimate_markers(self._estimates, self._edge_length, self._frame_id, stamp))
+        self._marker_publisher.publish(markers)
+
+    def _on_module_states(self, msg):
+        self._estimates = {
+            s.id: (s.position.x, s.position.y, s.position.z)
+            for s in msg.modules if s.localized}
 
     def _on_servo_commands(self, msg):
         # device_manager と同じく、受けた順にモジュールへ送る

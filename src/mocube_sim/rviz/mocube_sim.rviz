@@ -1,0 +1,63 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.1131
+      Plane Cell Count: 20
+      Offset:
+        X: 0.0
+        Y: 0.0
+        Z: -0.05655
+      Color: 160; 160; 164
+      Alpha: 0.5
+    - Class: rviz_default_plugins/MarkerArray
+      Name: mocube (本当の位置 + 推定の枠線)
+      Enabled: true
+      Topic:
+        Value: /sim/markers
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Namespaces:
+        true: true
+        id: true
+        estimate: true
+    - Class: rviz_default_plugins/TF
+      Name: TF (推定)
+      Enabled: false
+      Show Names: true
+      Show Axes: true
+      Show Arrows: false
+      Marker Scale: 0.3
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: world
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 1.3
+      Focal Point:
+        X: 0.11
+        Y: 0.11
+        Z: 0.11
+      Pitch: 0.5
+      Yaw: 3.9
+      Target Frame: <Fixed Frame>
+    Saved: ~
+Window Geometry:
+  Height: 800
+  Width: 1200
